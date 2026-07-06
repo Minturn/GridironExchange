@@ -5,28 +5,26 @@ UI direction mock: `docs/mock/the-floor.html` ("The Floor").
 
 **League money only — never real currency.**
 
-## Backend quickstart
+## Dev quickstart
 
 ```bash
+# backend (:8200) — use Homebrew python3.13, system python is 3.9
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
+/opt/homebrew/bin/python3.13 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
 alembic upgrade head           # creates gridx.db (SQLite locally)
-python scripts/seed_demo.py    # demo league, 4 users, 13 listings
+python scripts/seed_demo.py    # demo league · logins ryan/sal/derek/matty · pw demo123 · invite 'demo'
 uvicorn app.main:app --port 8200
+
+# frontend dev server (:5190, proxies /api -> :8200) — separate tab
+cd frontend && npm install && npm run dev
 ```
 
-Poke it:
+Open http://localhost:5190. For a one-process setup (demo/prod), `npm run build`
+once — the backend serves `frontend/dist` at `/` so :8200 is the whole app.
 
-```bash
-curl 'localhost:8200/market?league_id=1'
-curl -X POST localhost:8200/trade -H 'content-type: application/json' \
-     -d '{"user_id":1,"player_id":"4034","side":"buy","shares":10}'
-curl localhost:8200/portfolio/1
-```
-
-Tests: `pytest` (from `backend/`).
+Tests: `pytest` (from `backend/`, 32 tests). Balance backtest:
+`python scripts/backtest.py` (see `docs/balance.md`). Hosting: `docs/hosting.md`.
 
 ## Layout
 
@@ -46,8 +44,13 @@ docs/mock/       "The Floor" UI mock (49ers colors; gold=up, scarlet=down; no mo
 
 - [x] Phase 1 — engine: models + migration 0001, AMM trading, idempotent dividends,
       Sleeper provider, tests
-- [ ] Phase 2 — balance backtest vs. 2025 (nflverse); lock the knobs
-- [ ] Phase 3 — "The Floor" UI (:5190)
-- [ ] Phase 4 — friends demo via Tailscale Funnel
-- [ ] Phase 5 — season-ready on Fly.io (auth, invites, scheduler, game locks)
-- [ ] Phase 6 — Opening Bell (Sep 1, 2026)
+- [x] Phase 2 — balance backtest vs. real 2025 season; knobs locked (`docs/balance.md`:
+      p0 1.00× · dividend $0.30/pt · slope 12%)
+- [x] Phase 3 — "The Floor" UI (:5190): market+ticker, player page + order pad,
+      Your Book, Standings, The Tape, Commissioner
+- [x] Phase 5 — season-ready: invite-code auth, scheduler (nightly sync, price
+      snapshots, ESPN game locks, Tuesday settlement), commissioner tools
+- [x] Phase 4/6 packaging — Dockerfile + fly.toml + `docs/hosting.md` runbook
+      (Tailscale Funnel demo → Fly.io season) + `scripts/projections_snapshot.py`
+- [ ] OPERATIONAL — demo to friends (Phase A), Fly.io launch (Phase B),
+      Opening Bell Sep 1, 2026 (checklist at the end of `docs/hosting.md`)

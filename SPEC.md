@@ -44,13 +44,15 @@ every player has a **linear bonding curve** the house always quotes against:
 price(s) = P0 + m·s          s = net shares outstanding (held by users)
 ```
 
-- **P0 (IPO price)** seeded from preseason projections: `P0 = 0.50 × projected_season_pts`
-  (PPR). CMC ≈ 350 proj pts → $175. A streamer at 120 → $60. Deep bench → $5 floor.
+- **P0 (IPO price)** seeded from preseason projections: `P0 = 1.00 × projected_season_pts`
+  (PPR) **[LOCKED by the Phase 2 backtest — docs/balance.md]**. CMC ≈ 350 proj pts → $350.
+  A streamer at 120 → $120. Deep bench → $5 floor. A maxed stud position (25 shares)
+  costs most of a bankroll — concentration is expensive by design.
 - **Buying n shares** costs the integral along the curve:
   `cost = n·P0 + m·(s·n + n²/2)` — big buys move the price against you, so hype is
   self-limiting. **Selling** returns value along the same curve.
 - **Slope m** per player: calibrated so one member maxing the per-player cap moves the
-  price ≈ +8%: `m ≈ 0.08 × P0 / cap`. (Locked by backtest, §4.)
+  price ≈ +12%: `m = 0.12 × P0 / cap` **[LOCKED, Phase 2]**.
 - **1% fee** on every trade (burned; shown as a running "house pot" for flavor). Kills
   zero-risk oscillation games around the curve.
 
@@ -60,13 +62,13 @@ the game.
 
 ### 3.3 Dividends — the fundamentals engine
 - Every Tuesday ~6:00 AM PT (stats final), each share pays
-  `dividend = week_fantasy_pts × $0.75` (PPR, league scoring). Injured/bye = $0.
-- Payback math at defaults: buy at P0 and the player exactly hits projection → season
-  dividends = `0.75 × pts = 1.5 × P0` → **+50% season return before any price movement.**
-  Dividends inject new cash league-wide each week, which keeps the market active and
-  everyone's number going up — the *competition* is relative.
-- The `$0.75` multiplier and the `0.50` P0 factor are the two balance knobs. Locked by
-  backtest (§4), not by vibes.
+  `dividend = week_fantasy_pts × $0.30` (PPR) **[LOCKED, Phase 2]**. Injured/bye = $0.
+- Payback math at locked knobs: buy at P0 and the player exactly hits projection →
+  season dividends = `0.30 × pts = 0.30 × P0` → **~+30% season yield before price
+  movement** (backtested median outcome +29%). Dividends inject new cash league-wide
+  each week — everyone's number goes up; the *competition* is relative.
+- The dividend multiplier and P0 factor were locked by the Phase 2 backtest against the
+  real 2025 season (docs/balance.md), not by vibes.
 
 ### 3.4 Market rules
 - **Per-player cap:** one member may hold at most **25 shares** of any one player

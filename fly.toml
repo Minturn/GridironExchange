@@ -1,0 +1,25 @@
+# Fly.io config — season hosting (SPEC §9 Phase B).
+# First deploy: fly launch --no-deploy (accept this file), then see docs/hosting.md
+app = "gridiron-exchange"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  GRIDX_ENABLE_SCHEDULER = "1"
+
+[deploy]
+  release_command = "alembic upgrade head"
+
+[http_service]
+  internal_port = 8200
+  force_https = true
+  # the scheduler (game locks, Tuesday dividends) must keep running:
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
