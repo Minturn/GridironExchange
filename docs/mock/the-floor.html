@@ -1,0 +1,335 @@
+<title>Gridiron Exchange — The Floor</title>
+<style>
+  :root{
+    --ground:#0C0A09; --panel:#171310; --panel-2:#1E1813; --line:#2A231B;
+    --scarlet:#AA0000; --scarlet-hi:#E0442B;
+    --gold:#B3995D; --gold-hi:#E4D5AE;
+    --ink:#EDE6D6; --ink-dim:#8D8272;
+    --disp:"Avenir Next Condensed","Arial Narrow","Helvetica Neue",sans-serif;
+    --body:"Avenir Next","Helvetica Neue",-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{background:var(--ground)}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--body); font-size:13.5px; line-height:1.45;
+  }
+  a{color:var(--gold-hi)}
+  :focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+  .num{font-variant-numeric:tabular-nums}
+  .up{color:var(--gold-hi)} .dn{color:var(--scarlet-hi)}
+
+  /* ---------- masthead ---------- */
+  .mast{
+    display:flex; align-items:baseline; gap:18px; flex-wrap:wrap;
+    padding:18px 22px 12px; border-bottom:1px solid var(--line);
+  }
+  .wordmark{
+    font-family:var(--disp); font-weight:700; font-size:30px; letter-spacing:.06em;
+    text-transform:uppercase; line-height:1;
+  }
+  .wordmark b{color:var(--gold); font-weight:700}
+  .mast .tag{color:var(--ink-dim); font-size:12px; letter-spacing:.04em}
+  .mast .sess{
+    margin-left:auto; display:flex; gap:16px; align-items:baseline;
+    font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim);
+  }
+  .sess .cash{color:var(--gold-hi); font-size:13px}
+  .chip{
+    border:1px solid var(--line); color:var(--ink-dim); border-radius:2px;
+    padding:2px 7px; font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+  }
+  .chip.live{border-color:var(--gold); color:var(--gold)}
+
+  /* ---------- ticker tape ---------- */
+  .tape{
+    overflow:hidden; white-space:nowrap; border-bottom:1px solid var(--line);
+    background:var(--panel); padding:7px 0;
+  }
+  .tape-track{display:inline-block; animation:tape 42s linear infinite}
+  @keyframes tape{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .tape span{margin:0 20px; color:var(--ink-dim); font-size:12px}
+  .tape .tkr{color:var(--ink)}
+  @media (prefers-reduced-motion: reduce){ .tape-track{animation:none} }
+
+  /* ---------- layout ---------- */
+  .floor{
+    display:grid; grid-template-columns:minmax(0,1fr) 350px; gap:14px;
+    padding:14px 22px 22px; max-width:1240px; margin:0 auto;
+  }
+  @media (max-width:920px){ .floor{grid-template-columns:1fr} }
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:3px}
+  .panel h2{
+    font-family:var(--disp); text-transform:uppercase; font-size:14px; font-weight:600;
+    letter-spacing:.16em; color:var(--ink-dim); margin:0; padding:10px 14px;
+    border-bottom:1px solid var(--line);
+  }
+  .panel h2 em{font-style:normal; color:var(--gold)}
+  .rail{display:flex; flex-direction:column; gap:14px; min-width:0}
+
+  /* ---------- market table ---------- */
+  .market-wrap{overflow-x:auto}
+  table{border-collapse:collapse; width:100%; min-width:640px}
+  th{
+    text-align:right; font-weight:400; font-size:10px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--ink-dim); padding:8px 12px 6px;
+    border-bottom:1px solid var(--line);
+  }
+  th:first-child,th:nth-child(2){text-align:left}
+  td{
+    padding:7px 12px; border-bottom:1px solid #211B15; text-align:right;
+    font-variant-numeric:tabular-nums;
+  }
+  td:first-child,td:nth-child(2){text-align:left}
+  tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:var(--panel-2); cursor:pointer}
+  .tkr-cell{color:var(--gold); letter-spacing:.03em}
+  .pname{font-family:var(--disp); font-size:14.5px; letter-spacing:.02em; text-transform:uppercase}
+  .pmeta{color:var(--ink-dim); font-size:11px}
+  .price-cell{font-size:13.5px}
+  td.flash-up{animation:fup .5s} td.flash-dn{animation:fdn .5s}
+  @keyframes fup{0%{background:rgba(179,153,93,.4)}100%{background:transparent}}
+  @keyframes fdn{0%{background:rgba(170,0,0,.4)}100%{background:transparent}}
+  .spark{display:block; margin-left:auto}
+  .you{color:var(--ink-dim)} .you.own{color:var(--ink)}
+
+  /* ---------- player card ---------- */
+  .pc-head{display:flex; align-items:baseline; gap:10px; padding:12px 14px 2px}
+  .pc-head .tkr-big{font-family:var(--disp); font-size:26px; font-weight:700; letter-spacing:.04em; color:var(--gold)}
+  .pc-head .pos{color:var(--ink-dim); font-size:11px; letter-spacing:.12em; text-transform:uppercase}
+  .pc-price{display:flex; align-items:baseline; gap:12px; padding:0 14px 8px}
+  .pc-price .big{font-size:26px; letter-spacing:-.01em}
+  .pc-price .delta{font-size:13px}
+  .pc-chart{padding:0 14px 4px}
+  .pc-stats{
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:1px; background:var(--line);
+    border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin-top:8px;
+  }
+  .pc-stats div{background:var(--panel); padding:8px 14px}
+  .pc-stats .lbl{display:block; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim)}
+  .pc-stats .val{font-size:14px}
+
+  /* ---------- order pad ---------- */
+  .pad{padding:12px 14px 14px}
+  .side{display:flex; gap:8px; margin-bottom:10px}
+  .side button{
+    flex:1; font-family:var(--disp); text-transform:uppercase; letter-spacing:.2em;
+    font-size:13px; padding:8px 0; background:transparent; border-radius:2px; cursor:pointer;
+  }
+  .side .buy{border:1px solid var(--gold); color:#141005; background:var(--gold); font-weight:700}
+  .side .sell{border:1px solid var(--scarlet); color:var(--scarlet-hi)}
+  .qty-row{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+  .qty-row label{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim)}
+  .qty-row input{
+    width:80px; background:var(--ground); border:1px solid var(--line); color:var(--ink);
+    font-family:var(--body); font-variant-numeric:tabular-nums;
+    font-size:14px; padding:6px 8px; text-align:right; border-radius:2px;
+  }
+  .quote{color:var(--ink-dim); font-size:12px; border-top:1px dashed var(--line); padding-top:8px}
+  .quote b{color:var(--gold-hi); font-weight:400}
+  .place{
+    margin-top:10px; width:100%; padding:9px 0; background:transparent; cursor:pointer;
+    border:1px solid var(--gold); color:var(--gold); border-radius:2px;
+    font-family:var(--disp); text-transform:uppercase; letter-spacing:.24em; font-size:13px;
+  }
+  .place:hover{background:rgba(179,153,93,.12)}
+
+  /* ---------- leaderboard ---------- */
+  .board ol{list-style:none; margin:0; padding:4px 0}
+  .board li{
+    display:grid; grid-template-columns:26px 1fr auto auto; gap:10px; align-items:baseline;
+    padding:7px 14px; border-bottom:1px solid #211B15;
+  }
+  .board li:last-child{border-bottom:0}
+  .board .rk{color:var(--ink-dim); font-size:11px}
+  .board .nm{font-family:var(--disp); text-transform:uppercase; font-size:14px; letter-spacing:.04em}
+  .board li.me .nm{color:var(--gold-hi)}
+  .board .nw{font-variant-numeric:tabular-nums}
+  .board .wk{font-size:11px; width:56px; text-align:right}
+
+  /* ---------- the tape (feed) ---------- */
+  .feed{max-width:1240px; margin:0 auto; padding:0 22px 26px}
+  .feed ul{list-style:none; margin:0; padding:4px 0}
+  .feed li{
+    display:flex; gap:14px; padding:6px 14px; border-bottom:1px solid #211B15;
+    color:var(--ink-dim); font-size:12px;
+  }
+  .feed li:last-child{border-bottom:0}
+  .feed .t{width:52px; color:#5C5344}
+  .feed .who{color:var(--ink); font-family:var(--disp); text-transform:uppercase; letter-spacing:.05em; font-size:13px; width:70px}
+  .feed .tkr{color:var(--gold)}
+  .foot{
+    max-width:1240px; margin:0 auto; padding:0 22px 30px; color:#5C5344; font-size:11px;
+    letter-spacing:.06em;
+  }
+</style>
+
+<header class="mast">
+  <div>
+    <div class="wordmark">Gridiron <b>Exchange</b></div>
+    <div class="tag">your league, traded like a market · gold = up · scarlet = down</div>
+  </div>
+  <div class="sess">
+    <span class="chip">static mock · aug demo is live</span>
+    <span class="chip live">Wk 5 · Market Open</span>
+    <span>Cash <span class="cash num">$3,412.50</span></span>
+    <span>Net Worth <span class="cash num">$14,208.75</span></span>
+  </div>
+</header>
+
+<div class="tape" aria-hidden="true"><div class="tape-track" id="tape"></div></div>
+
+<main class="floor">
+  <section class="market panel">
+    <h2>The Floor <em>· all positions</em></h2>
+    <div class="market-wrap">
+      <table id="mkt">
+        <thead>
+          <tr><th>Tkr</th><th>Player</th><th>Price</th><th>Δ Day</th><th>4 Wk</th><th>Yld/Wk</th><th>You</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="pc-head"><span class="tkr-big">$CMC</span><span class="pos">Christian McCaffrey · RB · SF</span></div>
+      <div class="pc-price">
+        <span class="big num" id="cmc-big">$168.40</span>
+        <span class="delta up num">▲ 2.9% today</span>
+      </div>
+      <div class="pc-chart"><svg id="chart" width="320" height="96" viewBox="0 0 320 96" role="img" aria-label="Season price chart for CMC"></svg></div>
+      <div class="pc-stats">
+        <div><span class="lbl">IPO (P0)</span><span class="val num">$175.00</span></div>
+        <div><span class="lbl">Last Div</span><span class="val num up">$18.40/sh</span></div>
+        <div><span class="lbl">Held by</span><span class="val num">7 of 12</span></div>
+      </div>
+      <div class="pad">
+        <div class="side">
+          <button class="buy" type="button">Buy</button>
+          <button class="sell" type="button">Sell</button>
+        </div>
+        <div class="qty-row">
+          <label for="qty">Shares</label>
+          <input id="qty" class="num" value="40" inputmode="numeric">
+          <span class="pmeta num">cap 25/player — mock ignores it</span>
+        </div>
+        <p class="quote num">40 sh ≈ <b>$6,839.20</b> incl. 1% fee · avg <b>$169.29</b> · moves price to <b>$170.20</b></p>
+        <button class="place" type="button">Place Order</button>
+      </div>
+    </section>
+
+    <section class="panel board">
+      <h2>Standings <em>· net worth</em></h2>
+      <ol>
+        <li><span class="rk num">1</span><span class="nm">Big Sal</span><span class="nw num">$15,884</span><span class="wk up num">▲ 2</span></li>
+        <li class="me"><span class="rk num">2</span><span class="nm">Ryan</span><span class="nw num">$14,209</span><span class="wk up num">▲ 1</span></li>
+        <li><span class="rk num">3</span><span class="nm">Derek</span><span class="nw num">$13,970</span><span class="wk dn num">▼ 2</span></li>
+        <li><span class="rk num">4</span><span class="nm">Matty</span><span class="nw num">$12,455</span><span class="wk num">—</span></li>
+        <li><span class="rk num">5</span><span class="nm">Tony</span><span class="nw num">$11,038</span><span class="wk dn num">▼ 1</span></li>
+        <li><span class="rk num">6</span><span class="nm">Jen</span><span class="nw num">$10,644</span><span class="wk up num">▲ 3</span></li>
+      </ol>
+    </section>
+  </aside>
+</main>
+
+<section class="feed">
+  <div class="panel">
+    <h2>The Tape <em>· every trade is public</em></h2>
+    <ul>
+      <li><span class="t num">14:02</span><span class="who">Ryan</span><span>bought 25 <span class="tkr">$PURDY</span> @ <span class="num">96.40</span></span></li>
+      <li><span class="t num">13:47</span><span class="who">Big Sal</span><span>dumped 40 <span class="tkr">$KYLER</span> @ <span class="num">41.10</span> <span class="dn num">−6.2% on the day</span></span></li>
+      <li><span class="t num">13:31</span><span class="who">Jen</span><span>bought 18 <span class="tkr">$NABERS</span> @ <span class="num">88.75</span></span></li>
+      <li><span class="t num">06:00</span><span class="who">—</span><span>dividends posted · <span class="tkr">$CMC</span> paid <span class="up num">$18.40/sh</span> · <span class="tkr">$CHASE</span> paid <span class="up num">$21.90/sh</span> · Wk 4 total <span class="up num">$9,412</span> league-wide</span></li>
+      <li><span class="t num">Mon</span><span class="who">Derek</span><span>sold 30 <span class="tkr">$GIBBS</span> @ <span class="num">121.30</span> <span class="pmeta">(bought @ 98.10 — <span class="up num">+23.7%</span>)</span></span></li>
+    </ul>
+  </div>
+</section>
+
+<p class="foot">GRIDIRON EXCHANGE · UI direction mock ("The Floor") · league money only — never real currency · numbers are fake, the vibe is not</p>
+
+<script>
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const rows = [
+    ["$CHASE","Ja'Marr Chase","WR · CIN",178.35,3.1,[164,169,166,172,171,175,178],23.20,"12 sh"],
+    ["$CMC","Christian McCaffrey","RB · SF",168.40,2.9,[175,171,160,157,162,166,168],18.40,"25 sh"],
+    ["$JJET","Justin Jefferson","WR · MIN",164.10,-1.2,[168,170,166,169,167,166,164],17.10,"—"],
+    ["$BIJAN","Bijan Robinson","RB · ATL",157.90,0.8,[149,151,155,153,156,157,158],16.60,"10 sh"],
+    ["$LAMB","CeeDee Lamb","WR · DAL",139.25,-0.4,[146,144,141,142,140,140,139],14.90,"—"],
+    ["$GIBBS","Jahmyr Gibbs","RB · DET",123.80,1.6,[98,104,110,113,118,121,124],15.30,"—"],
+    ["$ALLEN","Josh Allen","QB · BUF",118.60,0.5,[112,114,113,116,117,118,119],21.70,"8 sh"],
+    ["$LAMAR","Lamar Jackson","QB · BAL",112.75,-2.1,[119,118,120,117,116,115,113],19.80,"—"],
+    ["$PUKA","Puka Nacua","WR · LAR",108.20,4.4,[92,95,99,97,101,104,108],13.60,"—"],
+    ["$PURDY","Brock Purdy","QB · SF",96.40,1.9,[88,90,89,92,94,95,96],14.20,"25 sh"],
+    ["$NABERS","Malik Nabers","WR · NYG",88.75,2.2,[74,79,83,81,85,87,89],11.40,"—"],
+    ["$KITTLE","George Kittle","TE · SF",71.30,-0.9,[75,74,76,73,72,72,71],9.80,"15 sh"],
+    ["$KYLER","Kyler Murray","QB · ARI",41.10,-6.2,[58,55,52,50,47,44,41],6.10,"—"],
+  ];
+
+  function spark(data, downOnWeek){
+    const w=72,h=20,min=Math.min(...data),max=Math.max(...data),span=(max-min)||1;
+    const pts=data.map((v,i)=>[(i/(data.length-1))*(w-4)+2, h-3-((v-min)/span)*(h-6)]);
+    const up=data[data.length-1]>=data[0], c=up?'#B3995D':'#E0442B';
+    const line=pts.map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' ');
+    const last=pts[pts.length-1];
+    return `<svg class="spark" width="${w}" height="${h}" aria-hidden="true">`+
+      `<polyline points="${line}" fill="none" stroke="${c}" stroke-width="1.3"/>`+
+      `<circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="1.8" fill="${c}"/></svg>`;
+  }
+
+  const fmt=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const tb=document.querySelector('#mkt tbody');
+  tb.innerHTML=rows.map(r=>{
+    const [tkr,name,meta,price,d,hist,yld,you]=r;
+    const dc=d>=0?'up':'dn', arrow=d>=0?'▲':'▼';
+    return `<tr>
+      <td class="tkr-cell">${tkr}</td>
+      <td><span class="pname">${name}</span> <span class="pmeta">${meta}</span></td>
+      <td class="price-cell num" data-tkr="${tkr}">$${fmt(price)}</td>
+      <td class="${dc} num">${arrow} ${Math.abs(d).toFixed(1)}%</td>
+      <td>${spark(hist)}</td>
+      <td class="num">$${yld.toFixed(2)}</td>
+      <td class="you num ${you!=='—'?'own':''}">${you}</td>
+    </tr>`;
+  }).join('');
+
+  // ticker tape — duplicate content for a seamless loop
+  const items=rows.map(r=>{
+    const dc=r[4]>=0?'up':'dn', a=r[4]>=0?'▲':'▼';
+    return `<span><span class="tkr">${r[0]}</span> <span class="num">${fmt(r[3])}</span> <span class="${dc} num">${a}${Math.abs(r[4]).toFixed(1)}%</span></span>`;
+  }).join('');
+  document.getElementById('tape').innerHTML=items+items;
+
+  // CMC season area chart with P0 line
+  (function(){
+    const svg=document.getElementById('chart');
+    const data=[175,173,169,171,160,155,157,152,158,162,160,165,163,166,168.4], p0=175;
+    const w=320,h=96,min=145,max=182,span=max-min;
+    const X=i=>(i/(data.length-1))*(w-8)+4, Y=v=>h-8-((v-min)/span)*(h-16);
+    const pts=data.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    svg.innerHTML=
+      `<polygon points="4,${h-8} ${pts} ${w-4},${h-8}" fill="rgba(179,153,93,.14)"/>`+
+      `<line x1="4" y1="${Y(p0).toFixed(1)}" x2="${w-4}" y2="${Y(p0).toFixed(1)}" stroke="#5C5344" stroke-dasharray="3 4" stroke-width="1"/>`+
+      `<text x="${w-6}" y="${(Y(p0)-4).toFixed(1)}" fill="#5C5344" font-size="9" text-anchor="end" font-family="Avenir Next, Helvetica Neue, sans-serif">P0 175.00</text>`+
+      `<polyline points="${pts}" fill="none" stroke="#B3995D" stroke-width="1.6"/>`+
+      `<circle cx="${X(data.length-1).toFixed(1)}" cy="${Y(data[data.length-1]).toFixed(1)}" r="2.6" fill="#E4D5AE"/>`;
+  })();
+
+  // live ticks (skipped under reduced motion)
+  if(!reduced){
+    setInterval(()=>{
+      const cells=[...document.querySelectorAll('.price-cell')];
+      const cell=cells[Math.floor(Math.random()*cells.length)];
+      const cur=parseFloat(cell.textContent.replace(/[$,]/g,''));
+      const jitter=(Math.random()-0.48)*0.012*cur;
+      const next=Math.max(1,cur+jitter);
+      cell.textContent='$'+fmt(next);
+      cell.classList.remove('flash-up','flash-dn');
+      void cell.offsetWidth;
+      cell.classList.add(jitter>=0?'flash-up':'flash-dn');
+      if(cell.dataset.tkr==='$CMC') document.getElementById('cmc-big').textContent='$'+fmt(next);
+    },2400);
+  }
+</script>
