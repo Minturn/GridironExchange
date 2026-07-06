@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 from app.db import Base
 from app.engine.amm import default_slope
@@ -11,7 +12,14 @@ from app.models import League, Listing, Player, User
 
 @pytest.fixture
 def session():
-    engine = create_engine("sqlite://", future=True)
+    # StaticPool + check_same_thread=False: TestClient drives the app from a
+    # worker thread, and the in-memory DB must be the same connection everywhere.
+    engine = create_engine(
+        "sqlite://",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     with Session(engine, expire_on_commit=False) as s:
         yield s

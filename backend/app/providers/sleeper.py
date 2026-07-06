@@ -53,6 +53,10 @@ class SleeperProvider:
             if isinstance(stats, dict) and stats.get("pts_ppr") is not None
         }
 
+    def fetch_state(self) -> dict:
+        """{'week': int, 'season_type': 'regular'|'pre'|'post', 'season': str, ...}"""
+        return self._get(f"{BASE}/state/nfl")
+
     def _get(self, url: str):
         resp = self._client.get(url)
         resp.raise_for_status()

@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import select
 
+from app.auth import hash_password
 from app.db import SessionLocal
 from app.models import League, Player, User
 from app.services.listings import create_listings
@@ -46,6 +47,7 @@ def main() -> None:
                 User(
                     league_id=league.id,
                     username=name,
+                    pw_hash=hash_password("demo123"),
                     cash=league.rules.starting_cash,
                     is_commissioner=(name == "ryan"),
                 )
@@ -56,6 +58,7 @@ def main() -> None:
         projections = {pid: Decimal(proj) for pid, _, _, _, proj in DEMO_PLAYERS}
         n = create_listings(session, league, projections)
         print(f"Seeded league '{league.name}' (id={league.id}), 4 users, {n} listings.")
+        print("Logins: ryan/sal/derek/matty — password 'demo123' · invite code 'demo'")
 
 
 if __name__ == "__main__":
