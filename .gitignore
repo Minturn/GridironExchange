@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 gridx.db
 .env
+data/

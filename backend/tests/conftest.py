@@ -19,7 +19,20 @@ def session():
 
 @pytest.fixture
 def league(session):
-    lg = League(name="Test League", invite_code="test", season_year=2026)
+    # knobs pinned explicitly: engine tests assert exact arithmetic and must not
+    # drift when the balance defaults (DEFAULT_RULES) get re-tuned
+    lg = League(
+        name="Test League",
+        invite_code="test",
+        season_year=2026,
+        settings_json={
+            "p0_factor": "0.50",
+            "dividend_multiplier": "0.75",
+            "fee_rate": "0.01",
+            "share_cap": 25,
+            "slope_pct": "0.08",
+        },
+    )
     session.add(lg)
     session.commit()
     return lg

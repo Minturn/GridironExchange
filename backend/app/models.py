@@ -27,15 +27,16 @@ POINTS = Numeric(7, 2)
 SLOPE = Numeric(12, 6)
 
 # Engine knobs live in leagues.settings_json so each league can have its own economy
-# (SPEC §11). Values here are the backtest-pending defaults from SPEC §3; Phase 2
-# locks them. Stored as strings → Decimal so JSON round-trips stay exact.
+# (SPEC §11). Values LOCKED by the Phase 2 backtest vs. the real 2025 season —
+# see docs/balance.md before touching them. Stored as strings → Decimal so JSON
+# round-trips stay exact.
 DEFAULT_RULES = {
-    "p0_factor": "0.50",        # P0 = p0_factor × projected season pts
+    "p0_factor": "1.00",        # P0 = p0_factor × projected season pts
     "p0_floor": "5.00",         # deep-bench price floor
-    "dividend_multiplier": "0.75",  # $/fantasy-point/share, weekly
+    "dividend_multiplier": "0.30",  # $/fantasy-point/share, weekly
     "fee_rate": "0.01",         # on every trade, burned
     "share_cap": 25,            # max shares per member per player
-    "slope_pct": "0.08",        # one member maxing the cap moves price ~+8%
+    "slope_pct": "0.12",        # one member maxing the cap moves price ~+12%
     "starting_cash": "10000.00",
 }
 
