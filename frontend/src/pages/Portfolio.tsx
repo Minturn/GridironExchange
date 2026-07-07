@@ -17,7 +17,7 @@ export function Portfolio() {
           Your Book <em>· net worth ${money(p.net_worth)} · cash ${money(p.cash)}</em>
         </h2>
         <div className="tbl-wrap">
-          <table>
+          <table className="book-table">
             <thead>
               <tr>
                 <th className="l">Player</th>

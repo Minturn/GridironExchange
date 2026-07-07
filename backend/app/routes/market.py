@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import current_user, get_session
 from app.db import utcnow
-from app.engine import amm
+from app.engine import amm, scoring
 from app.engine.trading import TradeError, execute_trade
 from app.models import Dividend, Holding, League, Listing, Player, PriceHistory, StatWeek, Trade, User
 
@@ -307,6 +307,50 @@ def portfolio(user: User = Depends(current_user), session: Session = Depends(get
     }
 
 
+@router.get("/manager/{username}")
+def manager(username: str, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    """Any manager's roster, visible to everyone in the same league (rosters are
+    public — that's the whole point of a league). Read-only view of their holdings."""
+    target = session.execute(
+        select(User).where(User.league_id == user.league_id, User.username == username)
+    ).scalar_one_or_none()
+    if target is None:
+        raise HTTPException(status_code=404, detail="no such manager in your league")
+    rows = session.execute(
+        select(Holding, Listing, Player)
+        .join(
+            Listing,
+            (Listing.player_id == Holding.player_id) & (Listing.league_id == Holding.league_id),
+        )
+        .join(Player, Player.id == Holding.player_id)
+        .where(Holding.user_id == target.id, Holding.shares > 0)
+    ).all()
+    holdings = []
+    mark_total = Decimal("0.00")
+    for h, l, p in rows:
+        mark = amm.sell_gross(l.p0, l.slope, l.shares_outstanding, h.shares)
+        mark_total += mark
+        holdings.append(
+            {
+                "player_id": p.id,
+                "name": p.name,
+                "team": p.team,
+                "pos": p.pos,
+                "shares": h.shares,
+                "spot": float(amm.spot_price(l.p0, l.slope, l.shares_outstanding)),
+                "mark_value": float(mark),
+            }
+        )
+    holdings.sort(key=lambda r: -r["mark_value"])
+    return {
+        "username": target.username,
+        "is_you": target.id == user.id,
+        "cash": float(target.cash),
+        "holdings": holdings,
+        "net_worth": float(amm.money(target.cash + mark_total)),
+    }
+
+
 @router.get("/leaderboard")
 def leaderboard(user: User = Depends(current_user), session: Session = Depends(get_session)):
     users = session.execute(select(User).where(User.league_id == user.league_id)).scalars().all()
@@ -387,17 +431,83 @@ def feed(
     return events[:limit]
 
 
+def _held_with_pos(session: Session, user: User):
+    """(Holding, Listing, Player) rows for a user's live positions."""
+    return session.execute(
+        select(Holding, Listing, Player)
+        .join(
+            Listing,
+            (Listing.player_id == Holding.player_id) & (Listing.league_id == Holding.league_id),
+        )
+        .join(Player, Player.id == Holding.player_id)
+        .where(Holding.user_id == user.id, Holding.shares > 0)
+    ).all()
+
+
+@router.get("/lineup")
+def get_lineup(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    league = session.get(League, user.league_id)
+    rules = league.rules
+    rows = _held_with_pos(session, user)
+    held = [
+        {"player_id": p.id, "name": p.name, "pos": p.pos, "team": p.team, "shares": h.shares}
+        for h, l, p in rows
+    ]
+    calc = [{"id": p.id, "pos": p.pos, "weight": float(l.p0)} for h, l, p in rows]
+    current = scoring.effective_starters(calc, rules.lineup_slots, user.lineup_json)
+    return {
+        "mode": rules.scoring_mode,
+        "slots": rules.lineup_slots,
+        "slot_keys": scoring.slot_keys(rules.lineup_slots),
+        "flex_positions": sorted(scoring.FLEX_POSITIONS),
+        "held": held,
+        "saved": user.lineup_json,
+        "current": sorted(current),
+    }
+
+
+class LineupIn(BaseModel):
+    player_ids: list[str]
+
+
+@router.post("/lineup")
+def set_lineup(body: LineupIn, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    league = session.get(League, user.league_id)
+    rules = league.rules
+    pos_map = {p.id: p.pos for h, l, p in _held_with_pos(session, user)}
+    if any(pid not in pos_map for pid in body.player_ids):
+        raise HTTPException(status_code=400, detail="you can only start players you hold")
+    chosen = [{"id": pid, "pos": pos_map[pid]} for pid in body.player_ids]
+    if not scoring.lineup_is_valid(chosen, rules.lineup_slots):
+        raise HTTPException(status_code=400, detail="that lineup doesn’t fit the slots")
+    user.lineup_json = list(body.player_ids)
+    session.commit()
+    return {"saved": user.lineup_json}
+
+
 @router.get("/state")
 def state(user: User = Depends(current_user), session: Session = Depends(get_session)):
     league = session.get(League, user.league_id)
+    rules = league.rules
     last_final = session.execute(
         select(func.max(StatWeek.week)).where(
             StatWeek.season == league.season_year, StatWeek.is_final.is_(True)
         )
     ).scalar()
+    opens_at_raw = (league.settings_json or {}).get("market_opens_at")
+    market_open = True
+    opens_at_out = None
+    if opens_at_raw:
+        market_open = datetime.fromisoformat(opens_at_raw) <= utcnow()
+        if not market_open:
+            opens_at_out = opens_at_raw + "Z"  # stored naive UTC → mark it UTC for JS
     return {
         "season": league.season_year,
         "league_name": league.name,
         "last_final_week": last_final or 0,
         "current_week": min((last_final or 0) + 1, 18),
+        "market_open": market_open,
+        "market_opens_at": opens_at_out,
+        "scoring_mode": rules.scoring_mode,
+        "lineup_slots": rules.lineup_slots,
     }

@@ -17,6 +17,8 @@ export function Commissioner() {
   const [pauseHours, setPauseHours] = useState(2)
   const [fix, setFix] = useState({ player_id: '', week: 1, pts: 0 })
   const [projections, setProjections] = useState('')
+  const [openAt, setOpenAt] = useState('')
+  const [mode, setMode] = useState('')
 
   async function run(label: string, fn: () => Promise<unknown>) {
     setOut(`${label}…`)
@@ -31,6 +33,54 @@ export function Commissioner() {
   return (
     <div className="page">
       <div className="admin-grid">
+        <Card title="Week 1 start time" blurb="Lock the market until a time you set, then it opens for the whole league at once — no early-bird edge for whoever logs in first. Pick a time everyone can be online. Leave it off to trade right now.">
+          <div className="row">
+            <input
+              type="datetime-local"
+              value={openAt}
+              onChange={(e) => setOpenAt(e.target.value)}
+              aria-label="Market open date and time"
+            />
+          </div>
+          <div className="row">
+            <button
+              className="btn solid"
+              disabled={!openAt}
+              onClick={() =>
+                run('set start time', () =>
+                  post('/api/admin/open-time', { opens_at: new Date(openAt).toISOString() }),
+                )
+              }
+            >
+              Set start time
+            </button>
+            <button className="btn" onClick={() => run('open now', () => post('/api/admin/open-time', { opens_at: null }))}>
+              Open now
+            </button>
+          </div>
+        </Card>
+
+        <Card
+          title="Scoring mode"
+          blurb="How dividends are scored (never re-prices the market). Market: every share pays raw points — QBs dominate. Relative: points normalized by position, so a QB and RB share pay about the same. Lineup: only your starting-lineup shares pay — one QB slot, like a normal league."
+        >
+          <div className="row">
+            <select value={mode} onChange={(e) => setMode(e.target.value)} aria-label="Scoring mode">
+              <option value="">choose…</option>
+              <option value="market">Market — raw points</option>
+              <option value="relative">Relative — position-normalized</option>
+              <option value="lineup">Lineup — starters only</option>
+            </select>
+            <button
+              className="btn solid"
+              disabled={!mode}
+              onClick={() => run('scoring mode', () => post('/api/admin/scoring-mode', { mode }))}
+            >
+              Set mode
+            </button>
+          </div>
+        </Card>
+
         <Card title="Sync players" blurb="Pull the player universe from Sleeper (runs nightly by itself in season).">
           <button className="btn" onClick={() => run('sync players', () => post('/api/admin/sync-players'))}>
             Sync now
@@ -74,7 +124,7 @@ export function Commissioner() {
           </div>
         </Card>
 
-        <Card title="Opening Bell" blurb='Create listings from a projections snapshot: {"player_id": season_pts, ...}. One shot per player — existing listings are never re-priced.'>
+        <Card title="Build the market (projections)" blurb='Create listings from a projections snapshot: {"player_id": season_pts, ...}. One shot per player — existing listings are never re-priced. Set the start time separately, above.'>
           <textarea value={projections} onChange={(e) => setProjections(e.target.value)} placeholder='{"4034": 350, "6786": 357}' />
           <button
             className="btn solid"

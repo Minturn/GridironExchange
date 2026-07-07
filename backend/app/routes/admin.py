@@ -1,5 +1,5 @@
 """Commissioner tools — everything here requires is_commissioner."""
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -101,6 +101,38 @@ def resume(user: User = Depends(current_commissioner), session: Session = Depend
     return {"ok": True}
 
 
+class OpenTimeIn(BaseModel):
+    # ISO 8601 (may carry a timezone). null / omitted = open the market immediately.
+    opens_at: datetime | None = None
+
+
+@router.post("/open-time")
+def set_open_time(body: OpenTimeIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Set THIS league's market-open time — the Week 1 starting gun. Until then every
+    listing is locked, so nobody can trade and the whole league starts together (no
+    early-bird edge). Stored per league; pass no time to open right now."""
+    league = session.get(League, user.league_id)
+    settings = dict(league.settings_json or {})
+    if body.opens_at is not None:
+        opens_at = body.opens_at
+        if opens_at.tzinfo is not None:  # normalise to naive UTC (how the engine compares)
+            opens_at = opens_at.astimezone(timezone.utc).replace(tzinfo=None)
+        settings["market_opens_at"] = opens_at.isoformat()
+        league.settings_json = settings
+        session.execute(
+            update(Listing).where(Listing.league_id == league.id).values(locked_until=opens_at)
+        )
+        session.commit()
+        return {"market_opens_at": opens_at.isoformat() + "Z", "status": "scheduled"}
+    settings.pop("market_opens_at", None)
+    league.settings_json = settings
+    session.execute(
+        update(Listing).where(Listing.league_id == league.id).values(locked_until=None)
+    )
+    session.commit()
+    return {"market_opens_at": None, "status": "open"}
+
+
 class OpeningBellIn(BaseModel):
     """Opening Bell (SPEC §3.1): projections snapshot -> listings. Source-agnostic:
     paste {player_id: projected_season_pts}."""
@@ -117,3 +149,19 @@ def opening_bell(body: OpeningBellIn, user: User = Depends(current_commissioner)
         session, league, {pid: Decimal(str(p)) for pid, p in body.projections.items()}
     )
     return {"listings_created": n}
+
+
+class ScoringModeIn(BaseModel):
+    mode: str = Field(pattern="^(market|relative|lineup)$")
+
+
+@router.post("/scoring-mode")
+def set_scoring_mode(body: ScoringModeIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Pick how dividends are scored for this league — 'market', 'relative', or
+    'lineup'. Only affects dividends; never re-prices the market."""
+    league = session.get(League, user.league_id)
+    settings = dict(league.settings_json or {})
+    settings["scoring_mode"] = body.mode
+    league.settings_json = settings
+    session.commit()
+    return {"scoring_mode": body.mode}

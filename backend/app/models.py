@@ -38,6 +38,10 @@ DEFAULT_RULES = {
     "share_cap": 25,            # max shares per member per player
     "slope_pct": "0.12",        # one member maxing the cap moves price ~+12%
     "starting_cash": "10000.00",
+    # scoring: "market" (raw), "relative" (position-normalized), or "lineup"
+    # (only starters score). Commissioner-selectable. See app/engine/scoring.py.
+    "scoring_mode": "market",
+    "lineup_slots": {"QB": 1, "RB": 2, "WR": 2, "TE": 1, "FLEX": 1},
 }
 
 
@@ -50,6 +54,8 @@ class LeagueRules:
     share_cap: int
     slope_pct: Decimal
     starting_cash: Decimal
+    scoring_mode: str
+    lineup_slots: dict
 
 
 class League(Base):
@@ -74,6 +80,8 @@ class League(Base):
             share_cap=int(raw["share_cap"]),
             slope_pct=Decimal(str(raw["slope_pct"])),
             starting_cash=Decimal(str(raw["starting_cash"])),
+            scoring_mode=str(raw.get("scoring_mode") or "market"),
+            lineup_slots=dict(raw.get("lineup_slots") or DEFAULT_RULES["lineup_slots"]),
         )
 
 
@@ -87,6 +95,8 @@ class User(Base):
     pw_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)  # auth lands Phase 5
     is_commissioner: Mapped[bool] = mapped_column(Boolean, default=False)
     cash: Mapped[Decimal] = mapped_column(MONEY, default=Decimal("0.00"))
+    # lineup mode: list of player_ids the manager has set as starters (null = auto)
+    lineup_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     league: Mapped[League] = relationship(back_populates="users")
 

@@ -3,11 +3,14 @@ import { HashRouter, NavLink, Route, Routes } from 'react-router-dom'
 import { get, post, money, ApiError } from './api'
 import type { LeagueState, MarketRow, Me } from './types'
 import { Ticker } from './components/Ticker'
+import { OpeningBellBanner } from './components/OpeningBell'
 import { Login } from './pages/Login'
 import { Floor } from './pages/Floor'
 import { PlayerPage } from './pages/PlayerPage'
 import { Portfolio } from './pages/Portfolio'
 import { Leaderboard } from './pages/Leaderboard'
+import { ManagerPage } from './pages/ManagerPage'
+import { Lineup } from './pages/Lineup'
 import { Tape } from './pages/Tape'
 import { Commissioner } from './pages/Commissioner'
 
@@ -74,6 +77,11 @@ export default function App() {
           <NavLink to="/portfolio" className={({ isActive }) => (isActive ? 'active' : '')}>
             Your Book
           </NavLink>
+          {state?.scoring_mode === 'lineup' && (
+            <NavLink to="/lineup" className={({ isActive }) => (isActive ? 'active' : '')}>
+              Lineup
+            </NavLink>
+          )}
           <NavLink to="/standings" className={({ isActive }) => (isActive ? 'active' : '')}>
             Standings
           </NavLink>
@@ -88,11 +96,14 @@ export default function App() {
         </nav>
       </header>
       <Ticker rows={market} />
+      <OpeningBellBanner opensAt={state?.market_opens_at ?? null} />
       <Routes>
         <Route path="/" element={<Floor rows={market} />} />
         <Route path="/player/:playerId" element={<PlayerPage onCashChange={refreshMe} />} />
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/standings" element={<Leaderboard />} />
+        <Route path="/manager/:username" element={<ManagerPage />} />
+        <Route path="/lineup" element={<Lineup />} />
         <Route path="/tape" element={<Tape />} />
         {me.is_commissioner && <Route path="/commish" element={<Commissioner />} />}
       </Routes>

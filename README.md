@@ -46,15 +46,25 @@ docs/mock/       "The Floor" UI mock (49ers colors; gold=up, scarlet=down; no mo
 
 ## Status
 
-- [x] Phase 1 — engine: models + migration 0001, AMM trading, idempotent dividends,
-      Sleeper provider, tests
+**Live demo running** (v0.3.0) from the Mac via Tailscale Funnel; full change log in
+[`CHANGELOG.md`](CHANGELOG.md).
+
+- [x] Phase 1 — engine: models + migrations, AMM trading, idempotent dividends,
+      Sleeper provider, tests (44 total)
 - [x] Phase 2 — balance backtest vs. real 2025 season; knobs locked (`docs/balance.md`:
       p0 1.00× · dividend $0.30/pt · slope 12%)
 - [x] Phase 3 — "The Floor" UI (:5190): market+ticker, player page + order pad,
-      Your Book, Standings, The Tape, Commissioner
-- [x] Phase 5 — season-ready: invite-code auth, scheduler (nightly sync, price
-      snapshots, ESPN game locks, Tuesday settlement), commissioner tools
+      Your Book, Standings, The Tape, Commissioner — **mobile-responsive + add-to-home-screen**
+- [x] Phase 5 — season-ready: invite-code auth (case-insensitive), scheduler (nightly
+      sync, price snapshots, ESPN game locks, Tuesday settlement), commissioner tools
 - [x] Phase 4/6 packaging — Dockerfile + fly.toml + `docs/hosting.md` runbook
-      (Tailscale Funnel demo → Fly.io season) + `scripts/projections_snapshot.py`
-- [ ] OPERATIONAL — demo to friends (Phase A), Fly.io launch (Phase B),
-      Opening Bell Sep 1, 2026 (checklist at the end of `docs/hosting.md`)
+      (Tailscale Funnel demo → Fly.io season) + `Run Demo.command` launcher
+- [x] **Scoring modes** — commissioner-selectable `market` / `relative` / `lineup`
+      (fixes QB dominance); lineup roster + `Lineup` tab; view other managers' rosters;
+      commissioner-set Week-1 start time with countdown
+- [ ] OPERATIONAL — friends demo underway (2 members); Fly.io launch (Phase B) +
+      Opening Bell for the real season (checklist at the end of `docs/hosting.md`)
+
+### Known issues
+- Expired/invalid session shows "Loading…" instead of redirecting to sign-in (needs a
+  global 401 → login). No GitHub remote yet (local repo only). See `CHANGELOG.md`.

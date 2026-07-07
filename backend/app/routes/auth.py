@@ -46,8 +46,12 @@ def register(body: RegisterIn, response: Response, session: Session = Depends(ge
     if league is None:
         raise HTTPException(status_code=400, detail="invalid invite code")
     username = body.username.strip()
+    # names are matched case-insensitively (a phone auto-capitalizes) — so "Ryan"
+    # and "ryan" are the same account and can't both be registered.
     taken = session.execute(
-        select(User).where(User.league_id == league.id, User.username == username)
+        select(User).where(
+            User.league_id == league.id, func.lower(User.username) == username.lower()
+        )
     ).scalar_one_or_none()
     if taken:
         raise HTTPException(status_code=400, detail="that name is taken in this league")
@@ -70,8 +74,9 @@ def register(body: RegisterIn, response: Response, session: Session = Depends(ge
 
 @router.post("/login")
 def login(body: LoginIn, response: Response, session: Session = Depends(get_session)):
+    # case-insensitive name match — the password stays exact
     user = session.execute(
-        select(User).where(User.username == body.username.strip())
+        select(User).where(func.lower(User.username) == body.username.strip().lower())
     ).scalars().first()
     if user is None or not user.pw_hash or not verify_password(body.password, user.pw_hash):
         raise HTTPException(status_code=401, detail="wrong name or password")

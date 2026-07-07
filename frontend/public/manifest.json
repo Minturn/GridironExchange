@@ -1,0 +1,16 @@
+{
+  "name": "Gridiron Exchange",
+  "short_name": "Gridiron",
+  "description": "Fantasy football where the players trade like stocks.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0C0A09",
+  "theme_color": "#0C0A09",
+  "icons": [
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" },
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
+  ]
+}

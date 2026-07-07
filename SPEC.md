@@ -70,7 +70,26 @@ the game.
 - The dividend multiplier and P0 factor were locked by the Phase 2 backtest against the
   real 2025 season (docs/balance.md), not by vibes.
 
+### 3.3a Scoring modes — how points become dividends [ADDED v0.3.0]
+A per-league setting the commissioner picks (Commissioner → Scoring mode). Fixes the
+"all QBs win every week" problem — QBs score the most raw points, so raw dividends favor
+them. **Modes only change dividends; they never re-price the market**, so switching is safe
+and doesn't disturb positions.
+- **`market`** — every held share pays raw points × multiplier. The baseline; QB-heavy.
+- **`relative`** — points normalized by position (QB ×0.80, RB ×0.99, WR ×1.07, TE ×1.23,
+  calibrated from the 2025 season — docs/balance.md), so a share of each position pays
+  about the same. Keeps "buy anyone, every share pays"; the market re-prices itself to the
+  new yields.
+- **`lineup`** — only shares of a manager's **starting lineup** pay (raw points). A single
+  QB slot caps QB dividends, exactly like a normal league. Managers set a lineup (`Lineup`
+  tab / `/api/lineup`); if unset, their best players auto-start so they're never zeroed.
+  Default roster QB1/RB2/WR2/TE1/FLEX1 (per-league override). Set lineups before the Tuesday
+  run (a lineup lock). Engine: `app/engine/scoring.py`.
+
 ### 3.4 Market rules
+- **Opening Bell time [ADDED v0.3.0]:** the commissioner can set a Week-1 start time; the
+  market stays locked (live countdown to everyone) until it, then opens for the whole league
+  at once — no early-bird pricing edge for whoever logs in first.
 - **Per-player cap:** one member may hold at most **25 shares** of any one player
   (no cornering CMC in a 12-person league).
 - **Game locks:** each player's trading locks at his game's kickoff and reopens when his

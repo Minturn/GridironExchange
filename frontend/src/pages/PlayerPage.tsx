@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { get, post, money, ApiError } from '../api'
 import type { PlayerDetail, Quote } from '../types'
 import { AreaChart } from '../components/AreaChart'
 
 export function PlayerPage({ onCashChange }: { onCashChange: () => void }) {
   const { playerId } = useParams()
+  const nav = useNavigate()
   const [detail, setDetail] = useState<PlayerDetail | null>(null)
   const [side, setSide] = useState<'buy' | 'sell'>('buy')
   const [shares, setShares] = useState(5)
@@ -168,9 +169,9 @@ export function PlayerPage({ onCashChange }: { onCashChange: () => void }) {
           </h2>
           <ol>
             {detail.holders.map((h, i) => (
-              <li key={h.username}>
+              <li key={h.username} className="rowlink" onClick={() => nav(`/manager/${encodeURIComponent(h.username)}`)}>
                 <span className="rk num">{i + 1}</span>
-                <span className="nm">{h.username}</span>
+                <span className="nm">{h.username} ›</span>
                 <span className="num">{h.shares} sh</span>
                 <span />
               </li>

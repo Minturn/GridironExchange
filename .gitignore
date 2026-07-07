@@ -6,3 +6,7 @@ gridx.db
 data/
 node_modules/
 dist/
+*.tsbuildinfo
+.DS_Store
+gridx_*.db
+projections_*.json

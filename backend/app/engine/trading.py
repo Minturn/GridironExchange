@@ -86,7 +86,7 @@ def execute_trade(
     if listing is None:
         raise BadOrder("player is not listed in this league")
     if listing.locked_until is not None and listing.locked_until > now:
-        raise MarketLocked(f"trading locked until {listing.locked_until:%a %H:%M} UTC (game in progress)")
+        raise MarketLocked(f"trading is locked until {listing.locked_until:%a %H:%M} UTC")
 
     holding = session.execute(
         select(Holding).where(Holding.user_id == user.id, Holding.player_id == player_id)

@@ -111,6 +111,59 @@ def test_feed_shows_trades(client):
     assert feed[0]["username"] == "ryan" and feed[0]["shares"] == 3
 
 
+def test_login_is_case_insensitive(client):
+    register(client, name="Ryan")
+    client.cookies.clear()
+    r = client.post("/api/auth/login", json={"username": "ryan", "password": "hunter22"})
+    assert r.status_code == 200
+    assert r.json()["username"] == "Ryan"
+
+
+def test_case_insensitive_name_is_taken(client):
+    register(client, name="Ryan")
+    client.cookies.clear()
+    r = client.post(
+        "/api/auth/register",
+        json={"invite_code": "test", "username": "ryan", "password": "hunter22"},
+    )
+    assert r.status_code == 400 and "taken" in r.json()["detail"]
+
+
+def test_manager_shows_another_managers_roster(client):
+    register(client, name="ryan")
+    client.post("/api/trade", json={"player_id": "cmc", "side": "buy", "shares": 4})
+    register(client, name="sal")  # client is now sal
+    r = client.get("/api/manager/ryan")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["username"] == "ryan" and body["is_you"] is False
+    assert body["holdings"][0]["player_id"] == "cmc"
+    assert body["holdings"][0]["shares"] == 4
+    assert client.get("/api/manager/nobody").status_code == 404
+
+
+def test_scoring_mode_and_lineup_flow(client, session, league):
+    register(client, name="ryan")  # commissioner
+    make_listing(session, league, make_player(session, pid="allen", name="Allen", pos="QB"))
+    assert client.post("/api/admin/scoring-mode", json={"mode": "lineup"}).status_code == 200
+    client.post("/api/trade", json={"player_id": "allen", "side": "buy", "shares": 3})
+    client.post("/api/trade", json={"player_id": "cmc", "side": "buy", "shares": 3})
+    lu = client.get("/api/lineup").json()
+    assert lu["mode"] == "lineup"
+    assert {h["player_id"] for h in lu["held"]} == {"allen", "cmc"}
+    r = client.post("/api/lineup", json={"player_ids": ["allen"]})
+    assert r.status_code == 200 and r.json()["saved"] == ["allen"]
+    # can't start a player you don't hold
+    assert client.post("/api/lineup", json={"player_ids": ["nobody"]}).status_code == 400
+    assert client.get("/api/state").json()["scoring_mode"] == "lineup"
+
+
+def test_scoring_mode_requires_commissioner(client):
+    register(client)  # commissioner
+    register(client, name="sal")  # now sal, not commissioner
+    assert client.post("/api/admin/scoring-mode", json={"mode": "relative"}).status_code == 403
+
+
 def test_admin_requires_commissioner(client):
     register(client)  # commissioner
     register(client, name="sal")  # session cookie now sal (not commissioner)

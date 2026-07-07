@@ -12,7 +12,7 @@ export function Floor({ rows }: { rows: MarketRow[] }) {
           The Floor <em>· {rows.length} listed</em>
         </h2>
         <div className="tbl-wrap">
-          <table>
+          <table className="market-table">
             <thead>
               <tr>
                 <th className="l">Player</th>

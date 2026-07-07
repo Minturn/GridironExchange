@@ -49,6 +49,22 @@ Bot pools are tight — 12 similar-skill bots on 3 seeds give a +36% top decile.
 Human leagues disperse far more (people hold injured players, chase news, panic).
 Treat the bot spread as a floor; revisit after real Week-6 data this fall.
 
+## Relative-mode position factors (v0.3.0)
+
+For the `relative` scoring mode (app/engine/scoring.py), dividends are scaled by a
+per-position factor so a point means the same across positions. Factor =
+`overall_avg / position_avg`, from per-game PPR among startable players in the 2025 season:
+
+| pos | startable pool | avg PPR/game | factor |
+|-----|----------------|--------------|--------|
+| QB  | top 24 | 17.13 | **0.80** |
+| RB  | top 36 | 13.91 | **0.99** |
+| WR  | top 48 | 12.84 | **1.07** |
+| TE  | top 18 | 11.18 | **1.23** |
+
+QBs score ~23% more than RBs in PPR, so they're scaled down the most; TEs up. Recompute
+with the snippet in `scripts/` or by adapting `backtest.py`'s `load_season`.
+
 ## Re-running
 
 ```bash

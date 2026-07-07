@@ -70,6 +70,22 @@ export interface Portfolio {
   net_worth: number
 }
 
+export interface ManagerBook {
+  username: string
+  is_you: boolean
+  cash: number
+  net_worth: number
+  holdings: {
+    player_id: string
+    name: string
+    team: string | null
+    pos: string
+    shares: number
+    spot: number
+    mark_value: number
+  }[]
+}
+
 export interface BoardRow {
   rank: number
   username: string
@@ -96,4 +112,18 @@ export interface LeagueState {
   league_name: string
   last_final_week: number
   current_week: number
+  market_open: boolean
+  market_opens_at: string | null
+  scoring_mode: 'market' | 'relative' | 'lineup'
+  lineup_slots: Record<string, number>
+}
+
+export interface LineupData {
+  mode: string
+  slots: Record<string, number>
+  slot_keys: string[]
+  flex_positions: string[]
+  held: { player_id: string; name: string; pos: string; team: string | null; shares: number }[]
+  saved: string[] | null
+  current: string[]
 }
