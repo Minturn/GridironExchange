@@ -23,6 +23,10 @@ cd frontend && npm install && npm run dev
 Open http://localhost:5190. For a one-process setup (demo/prod), `npm run build`
 once — the backend serves `frontend/dist` at `/` so :8200 is the whole app.
 
+**Showing friends?** Just double-click **`Run Demo.command`** (builds, seeds,
+keeps the Mac awake, serves on :8200), then `tailscale funnel 8200` to get a
+public link. Full walkthrough: `docs/hosting.md` → Phase A.
+
 Tests: `pytest` (from `backend/`, 32 tests). Balance backtest:
 `python scripts/backtest.py` (see `docs/balance.md`). Hosting: `docs/hosting.md`.
 

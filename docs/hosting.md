@@ -4,25 +4,94 @@ Two phases (SPEC §9): demo from the Mac now, Fly.io for the season.
 
 ## Phase A — friends demo from this Mac (Tailscale Funnel, free)
 
-1. Install Tailscale (`brew install --cask tailscale`), sign in, and in the
-   admin console enable **HTTPS certificates** + **Funnel** for your tailnet
-   (Settings → Feature previews / Access controls — one-time).
-2. Start the app (one process serves API + UI):
-   ```bash
-   cd ~/GridironExchange/frontend && npm run build
-   cd ~/GridironExchange/backend
-   source .venv/bin/activate
-   alembic upgrade head && python scripts/seed_demo.py   # first time only
-   GRIDX_SECRET_KEY="$(openssl rand -hex 32)" uvicorn app.main:app --port 8200
-   ```
-3. Expose it: `tailscale funnel 8200` → gives a stable
-   `https://<your-mac>.<tailnet>.ts.net` URL anyone can open.
-4. Keep the Mac awake during demo windows: `caffeinate -dims` in another tab.
-5. Friends: open the URL → **Join with an invite code** → code `demo`
-   (or the seeded logins ryan/sal/derek/matty, password `demo123`).
+Goal: a public `https://…ts.net` link your friends open in any browser, served
+straight from this Mac. Two windows total once it's set up — the app, and the
+share command. **Do the one-time setup once; after that a demo is: double-click,
+run one command, send the link.**
 
-Stop sharing: `tailscale funnel reset`. A sleeping laptop kills the demo —
-fine for showings, not for the season.
+### One-time setup (~10 min, do it once)
+
+**1. Install Tailscale and sign in.**
+```bash
+brew install --cask tailscale
+open -a Tailscale
+```
+The Tailscale icon appears in the menu bar → click it → **Log in…** → sign in
+(Google/GitHub/email). You'll see "Connected" and a machine name like
+`ryans-macbook`. That machine name is the start of your public URL.
+
+**2. Put the `tailscale` command on your PATH** (the GUI app hides it inside the
+bundle). Run once:
+```bash
+sudo ln -sf /Applications/Tailscale.app/Contents/MacOS/Tailscale /usr/local/bin/tailscale
+tailscale version    # confirms it works
+```
+
+**3. Turn on HTTPS for your tailnet** (Funnel needs a real cert). Open the admin
+console → **DNS** tab → https://login.tailscale.com/admin/dns →
+enable **MagicDNS** (if not already) and click **Enable HTTPS**. One toggle, once.
+
+**4. Allow Funnel.** Run the share command once now to trigger the permission
+check:
+```bash
+tailscale funnel 8200
+```
+- If it prints a URL, you're done — Ctrl-C and move on.
+- If it errors that Funnel isn't permitted, it prints the exact JSON snippet to
+  paste. Open the admin console → **Access controls** →
+  https://login.tailscale.com/admin/acls → add the printed `nodeAttrs` block
+  (it grants the `funnel` attribute to your machines) → **Save** → re-run.
+
+### Every demo (three steps)
+
+**1. Start the app** — double-click **`Run Demo.command`** in the
+`GridironExchange` folder (Finder), or in a terminal:
+```bash
+cd ~/GridironExchange && ./"Run Demo.command"
+```
+It builds the UI, sets up the database on first run, **keeps the Mac awake**, and
+serves everything on `http://127.0.0.1:8200`. Leave this window open. (First run
+is slower — it builds the front end and creates the venv.)
+
+> If Finder says it can't run the file: right-click → **Open** → **Open** once to
+> clear the macOS quarantine prompt; after that double-click works.
+
+**2. Share it** — open a **new** Terminal tab/window (⌘T) and run:
+```bash
+tailscale funnel 8200
+```
+It prints your public link, e.g. `https://ryans-macbook.tail1234.ts.net`. Keep
+this window open too. (Prefer fire-and-forget? `tailscale funnel --bg 8200`
+backgrounds it; `tailscale funnel status` reprints the URL.)
+
+**3. Send the link.** Text your friends the `https://…ts.net` URL plus:
+> Join code: **demo** — pick any name + password on the join screen.
+
+They land on the sign-in screen → **"New here? Join with an invite code"** →
+code `demo`. (You can also hand out the seeded logins ryan/sal/derek/matty,
+password `demo123`, but a fresh join per person is the better demo.)
+
+### When you're done
+
+- **Stop sharing:** `tailscale funnel reset` (or Ctrl-C the funnel window).
+- **Stop the app:** Ctrl-C the `Run Demo.command` window (this also lets the Mac
+  sleep again).
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| Friend sees "This site can't be reached" | The app window isn't running, or the funnel isn't up. Both windows must stay open. Check `tailscale funnel status`. |
+| `tailscale: command not found` | Redo one-time step 2 (the PATH symlink). |
+| Funnel error about permission / `funnel` attribute | Redo one-time step 4 — paste the printed ACL snippet into Access controls. |
+| No HTTPS / cert error | Redo one-time step 3 — Enable HTTPS in the admin DNS tab. |
+| `address already in use` on 8200 | An old copy is still running: `lsof -ti tcp:8200 \| xargs kill`, then relaunch. |
+| Friends get logged out after you restart | Shouldn't happen — the secret is pinned in `backend/.env`. If you deleted that file, a new one is generated (new secret → everyone re-logs-in once). |
+| Link works on your wifi but not their phone | Make sure you used **`funnel`** (public), not `serve` (tailnet-only). `funnel` is the public one. |
+| Demo data got messy before a real showing | Reset to the clean seed: stop the app, `rm ~/GridironExchange/backend/gridx.db`, relaunch. |
+
+A sleeping/closed laptop kills the demo — fine for live showings, not for the
+season. When friends want to check portfolios all week, move to Phase B.
 
 ## Phase B — the season (Fly.io, ~$5–10/mo)
 
