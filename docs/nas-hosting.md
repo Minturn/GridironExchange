@@ -1,115 +1,105 @@
 # Hosting on a Synology NAS (DS220+)
 
-The DS220+ is Intel-based and runs **Container Manager** (Docker), so it can host the app
-in a container. The win over the Mac: the NAS is **always on**, so the app and the public
-link stay up 24/7 — no more "Mac went to sleep." It's also free (your hardware) and keeps
-the data at home. This is the recommended host for the friend-league season.
+The DS220+ is Intel-based and runs **Container Manager**, so it can host the app in a
+container. The win over the Mac: the NAS is **always on**, so the app and the public link
+stay up 24/7 — no more "Mac went to sleep." Free, and the data stays home. This is the
+recommended host for the friend-league season.
 
-> Everything here is done once. After it's running, updates are one rebuild.
+**Build strategy:** the DS220+ only has 2 GB RAM, so it does **not** build the image.
+Instead, **GitHub Actions builds it in the cloud** and publishes it to the GitHub Container
+Registry (GHCR); the NAS just **pulls the finished image**. So the NAS only needs the
+`docker-compose.yml` file, not the source.
 
 ## What you'll end up with
-- The app running as a container on the NAS, database on a NAS folder (survives reboots).
+- The app as a container on the NAS, database on a NAS folder (survives reboots/updates).
 - The season scheduler ON (Tuesday dividends, nightly sync, game locks run themselves).
-- A public `https://…ts.net` link via Tailscale running on the NAS.
+- A public `https://…ts.net` link via Tailscale on the NAS.
 
 ---
 
-## 1. One-time NAS prep
-1. **Install Container Manager**: DSM → **Package Center** → search **Container Manager** → Install.
-2. **Enable SSH** (needed for a couple of commands): DSM → **Control Panel → Terminal & SNMP** →
-   check **Enable SSH service** → Apply.
-3. Pick a folder for the project, e.g. create a shared folder `docker`, so the path is
-   `/volume1/docker/gridiron`.
-
-## 2. Get the code onto the NAS
-SSH into the NAS (`ssh ryan@<nas-ip>`), then clone the repo. It's private, so use a GitHub
-**Personal Access Token** (github.com → Settings → Developer settings → Tokens → generate one
-with `repo` scope):
+## 1. Publish the image (one push)
+On the Mac:
 
 ```
-cd /volume1/docker
-git clone https://<YOUR_TOKEN>@github.com/Minturn/GridironExchange.git gridiron
+cd ~/GridironExchange && git push origin master
 ```
 
-(No git on the NAS? Install **Git Server** from Package Center, or copy the folder over with
-File Station — but exclude `node_modules`, `.venv`, and `dist`, which are huge and rebuilt anyway.)
+That push triggers the **Build and publish Docker image** workflow. Watch it at
+github.com → your repo → **Actions**; wait for the green check (~2–3 min). It publishes
+`ghcr.io/minturn/gridironexchange:latest`.
 
-## 3. Bring your league + login secret over (so nothing resets)
-On the **Mac**, find your session secret:
+## 2. NAS prep (one-time)
+1. **Container Manager** is installed ✓.
+2. **Enable SSH**: DSM → Control Panel → Terminal & SNMP → **Enable SSH service** → Apply.
+3. Create a shared folder so you have `/volume1/docker/gridiron`, with a `data` subfolder.
 
-```
-grep GRIDX_SECRET_KEY ~/GridironExchange/backend/.env
-```
+## 3. Put three small things in that folder
+The NAS needs only the compose file, a secret, and your league database:
 
-Create the NAS env file with that exact value so everyone stays logged in:
+- **`docker-compose.yml`** — copy just this one file from the repo into
+  `/volume1/docker/gridiron/` (File Station upload, or paste it in DSM's Text Editor).
+- **`.env`** — reuse the Mac's session key so nobody gets logged out. On the Mac:
+  ```
+  grep GRIDX_SECRET_KEY ~/GridironExchange/backend/.env
+  ```
+  Then create `/volume1/docker/gridiron/.env` containing that one line
+  (`GRIDX_SECRET_KEY=...`).
+- **`data/gridx.db`** — bring your league over. From the Mac:
+  ```
+  scp ~/GridironExchange/backend/gridx.db ryan@<nas-ip>:/volume1/docker/gridiron/data/gridx.db
+  ```
+  (Skip this for a fresh start — the container makes an empty DB and the first to register
+  becomes commissioner.)
 
-```
-cd /volume1/docker/gridiron
-mkdir -p data
-printf 'GRIDX_SECRET_KEY=%s\n' 'PASTE_THE_KEY_FROM_THE_MAC' > .env
-```
+## 4. Let the NAS pull a private image
+The GHCR image is private, so log the NAS into the registry once:
+**Container Manager → Registry → Settings (⚙) → Add** → `ghcr.io` with your **GitHub
+username** and a **Personal Access Token** (github.com → Settings → Developer settings →
+Tokens → scope `read:packages`).
 
-Then copy the current league database from the Mac to the NAS's `data` folder (so thezipr23,
-Jeff, all trades come with you). Easiest: File Station → upload
-`~/GridironExchange/backend/gridx.db` into `/volume1/docker/gridiron/data/`. Or from the Mac:
+*(Prefer no token? Make the package public: github.com → your profile → Packages →
+gridironexchange → Package settings → Change visibility → Public. Then skip this step.)*
 
-```
-scp ~/GridironExchange/backend/gridx.db ryan@<nas-ip>:/volume1/docker/gridiron/data/gridx.db
-```
+## 5. Run it
+1. **Container Manager → Project → Create.**
+2. **Path** `/volume1/docker/gridiron` → it detects `docker-compose.yml` (which *pulls* the
+   image — no building on the NAS).
+3. **Run.** It pulls the image and starts; the log ends with `Uvicorn running on … :8200`.
+4. Test on your LAN: open `http://<nas-ip>:8200` — you should see the sign-in screen.
 
-(Skip the copy for a fresh start — the container creates an empty DB and the first person to
-register becomes commissioner.)
+## 6. Make it public (Tailscale on the NAS)
+1. **Package Center** → install **Tailscale** → open → **Log in** (same account). The NAS
+   joins your tailnet as a new machine.
+2. SSH in and turn on the funnel (HTTPS is already enabled on your tailnet):
+   ```
+   sudo /var/packages/Tailscale/target/bin/tailscale funnel --bg 8200
+   ```
+3. Get the URL:
+   ```
+   sudo /var/packages/Tailscale/target/bin/tailscale funnel status
+   ```
+   It prints a link like `https://synology.tail3c5b35.ts.net` — **that's the season URL.**
+   Share it with the invite code `kickoff`. (Retire the Mac's funnel with
+   `tailscale funnel reset` on the Mac.)
 
-## 4. Build + run it (Container Manager)
-1. Open **Container Manager → Project → Create**.
-2. **Path**: `/volume1/docker/gridiron` · **Source**: it'll detect `docker-compose.yml`.
-3. Click **Build** / **Next** → **Done**. First build takes a few minutes (it builds the web
-   UI, then the server). Watch the log; when it shows `Uvicorn running on … :8200`, it's up.
-4. Test on your network: open `http://<nas-ip>:8200` — you should see the sign-in screen.
-
-## 5. Make it public (Tailscale on the NAS)
-1. **Package Center** → search **Tailscale** → Install → open it → **Log in** (same Tailscale
-   account). The NAS joins your tailnet as a new machine (e.g. `synology`).
-2. SSH into the NAS and turn on the funnel (HTTPS is already enabled on your tailnet):
-
-```
-sudo /var/packages/Tailscale/target/bin/tailscale funnel --bg 8200
-```
-
-3. Get the public URL:
-
-```
-sudo /var/packages/Tailscale/target/bin/tailscale funnel status
-```
-
-It prints a new link like `https://synology.tail3c5b35.ts.net`. **That's the season URL** —
-share it + the invite code `kickoff` with your friends. (It's a different URL than the Mac's
-because it's a different machine. You can retire the Mac funnel with `tailscale funnel reset`
-on the Mac.)
-
-## 6. Updating later
-When I ship changes, on the NAS:
-
-```
-cd /volume1/docker/gridiron && git pull
-```
-
-then **Container Manager → your Project → Build** again (or Stop/Start). The `data` folder
-(your league) is untouched; migrations apply automatically on start.
+## 7. Updating later
+When I ship changes: push to GitHub → the Action rebuilds the image automatically. On the
+NAS, **Container Manager → your Project → pull + restart** (or add **Watchtower** to
+auto-pull). Your `data` folder (the league) is untouched; migrations apply on start.
 
 ---
 
 ## Troubleshooting
-- **Build runs out of memory** (DS220+ has 2 GB): add a swap file, or bump the NAS to 6 GB
-  RAM (cheap SODIMM). If it still struggles, tell me — I'll set up a GitHub Action that builds
-  the image in the cloud and publishes it, so the NAS just *pulls* a finished image (no build).
-- **Public link 502**: the container isn't running — check Container Manager → Project is
-  "Running", and `http://<nas-ip>:8200` works on the LAN first.
-- **Tailscale funnel command not found**: the binary is under
-  `/var/packages/Tailscale/target/bin/tailscale`; use the full path (as above).
-- **Everyone got logged out after the move**: the NAS `.env` `GRIDX_SECRET_KEY` didn't match
-  the Mac's. Fix the value in `.env`, rebuild — or just have people sign in again once.
+- **Action fails**: open the failed run under github.com → Actions for the log.
+- **NAS "pull access denied"**: the GHCR login (step 4) didn't take, or the token lacks
+  `read:packages`. Re-add the `ghcr.io` registry, or make the package public.
+- **Public link 502**: the container isn't running — confirm the Project is "Running" and
+  `http://<nas-ip>:8200` works on the LAN first.
+- **`tailscale` not found**: use the full path
+  `/var/packages/Tailscale/target/bin/tailscale`.
+- **Everyone logged out after the move**: the NAS `.env` `GRIDX_SECRET_KEY` didn't match the
+  Mac's — fix it and restart, or have people sign in again once.
 
 ## When it becomes a product
 For public/multi-league, move to **Fly.io** (`docs/hosting.md`, Phase B) — off your home
-network and internet, and it scales. The NAS is ideal for one friend league; Fly.io for many.
+network, and it scales. The NAS is ideal for one friend league; Fly.io for many.

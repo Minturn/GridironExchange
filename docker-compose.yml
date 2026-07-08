@@ -2,8 +2,10 @@
 # Full step-by-step: docs/nas-hosting.md. Build context is the repo root (./Dockerfile).
 services:
   app:
-    build: .
-    image: gridiron-exchange:latest
+    # NAS pulls the image GitHub Actions builds (.github/workflows/docker-publish.yml).
+    # To build locally on a beefier machine instead: comment `image:` and use `build: .`.
+    image: ghcr.io/minturn/gridironexchange:latest
+    # build: .
     container_name: gridiron-exchange
     restart: unless-stopped
     ports:
