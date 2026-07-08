@@ -4,6 +4,8 @@ import { get, post, money, ApiError } from './api'
 import type { LeagueState, MarketRow, Me } from './types'
 import { Ticker } from './components/Ticker'
 import { OpeningBellBanner } from './components/OpeningBell'
+import { WhatsNew } from './components/WhatsNew'
+import { APP_VERSION } from './releaseNotes'
 import { Login } from './pages/Login'
 import { Floor } from './pages/Floor'
 import { PlayerPage } from './pages/PlayerPage'
@@ -19,6 +21,7 @@ export default function App() {
   const [checked, setChecked] = useState(false)
   const [market, setMarket] = useState<MarketRow[]>([])
   const [state, setState] = useState<LeagueState | null>(null)
+  const [whatsNew, setWhatsNew] = useState(false)
 
   const refreshMe = useCallback(() => {
     get<Me>('/api/auth/me')
@@ -66,6 +69,14 @@ export default function App() {
             Cash <span className="cash num">${money(me.cash)}</span>
           </span>
           <span className="dim">{me.username}</span>
+          <button className="chip" onClick={() => setWhatsNew(true)} type="button" title="What’s new / version">
+            v{APP_VERSION}
+          </button>
+          {state?.version && state.version !== APP_VERSION && (
+            <button className="chip update" onClick={() => window.location.reload()} type="button">
+              update ⟳
+            </button>
+          )}
           <button className="chip" onClick={signOut} type="button">
             Sign out
           </button>
@@ -110,6 +121,7 @@ export default function App() {
       <p className="foot">
         GRIDIRON EXCHANGE · league money only — never real currency · gold = up · scarlet = down
       </p>
+      {whatsNew && <WhatsNew onClose={() => setWhatsNew(false)} />}
     </HashRouter>
   )
 }

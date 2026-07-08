@@ -1,5 +1,12 @@
-import { useState } from 'react'
-import { post, ApiError } from '../api'
+import { useEffect, useState } from 'react'
+import { get, post, ApiError } from '../api'
+
+interface P {
+  player_id: string
+  name: string
+  pos: string
+  team: string | null
+}
 
 function Card({ title, blurb, children }: { title: string; blurb: string; children: React.ReactNode }) {
   return (
@@ -19,6 +26,15 @@ export function Commissioner() {
   const [projections, setProjections] = useState('')
   const [openAt, setOpenAt] = useState('')
   const [mode, setMode] = useState('')
+  const [players, setPlayers] = useState<P[]>([])
+  const [fixSearch, setFixSearch] = useState('')
+  const [divRate, setDivRate] = useState('')
+
+  useEffect(() => {
+    get<P[]>('/api/market')
+      .then((m) => setPlayers(m.map((r) => ({ player_id: r.player_id, name: r.name, pos: r.pos, team: r.team }))))
+      .catch(() => {})
+  }, [])
 
   async function run(label: string, fn: () => Promise<unknown>) {
     setOut(`${label}…`)
@@ -81,6 +97,31 @@ export function Commissioner() {
           </div>
         </Card>
 
+        <Card
+          title="Dividend rate"
+          blurb="$ paid per fantasy point, per share, each week — the main scoring dial. Higher = bigger weekly payouts. Takes effect on the next dividend run; never re-prices the market. Default 0.30."
+        >
+          <div className="row">
+            <label>$/pt</label>
+            <input
+              type="number"
+              step="0.05"
+              min={0}
+              placeholder="0.30"
+              value={divRate}
+              style={{ width: 80 }}
+              onChange={(e) => setDivRate(e.target.value)}
+            />
+            <button
+              className="btn solid"
+              disabled={!divRate}
+              onClick={() => run('dividend rate', () => post('/api/admin/rules', { dividend_multiplier: Number(divRate) }))}
+            >
+              Set rate
+            </button>
+          </div>
+        </Card>
+
         <Card title="Sync players" blurb="Pull the player universe from Sleeper (runs nightly by itself in season).">
           <button className="btn" onClick={() => run('sync players', () => post('/api/admin/sync-players'))}>
             Sync now
@@ -113,12 +154,39 @@ export function Commissioner() {
           </div>
         </Card>
 
-        <Card title="Stat correction" blurb="Fix one player-week before (re-)posting that week's dividends. No claw-backs — fix first, then post.">
+        <Card title="Stat correction" blurb="Fix one player's points for a week before (re-)posting that week's dividends. No claw-backs — fix first, then post. Search for the player.">
           <div className="row">
-            <input placeholder="player id" value={fix.player_id} style={{ width: 110 }} onChange={(e) => setFix({ ...fix, player_id: e.target.value })} />
-            <input type="number" min={1} max={18} value={fix.week} style={{ width: 58 }} onChange={(e) => setFix({ ...fix, week: Number(e.target.value) })} />
+            <input
+              placeholder="search player…"
+              value={fixSearch}
+              style={{ width: 160 }}
+              onChange={(e) => setFixSearch(e.target.value)}
+            />
+          </div>
+          <div className="row">
+            <select value={fix.player_id} style={{ maxWidth: 240 }} onChange={(e) => setFix({ ...fix, player_id: e.target.value })}>
+              <option value="">choose player…</option>
+              {players
+                .filter(
+                  (p) =>
+                    !fixSearch ||
+                    `${p.name} ${p.pos} ${p.team ?? ''}`.toLowerCase().includes(fixSearch.toLowerCase()),
+                )
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((p) => (
+                  <option key={p.player_id} value={p.player_id}>
+                    {p.name} · {p.pos} · {p.team ?? 'FA'}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="row">
+            <label>Wk</label>
+            <input type="number" min={1} max={18} value={fix.week} style={{ width: 56 }} onChange={(e) => setFix({ ...fix, week: Number(e.target.value) })} />
+            <label>Pts</label>
             <input type="number" step="0.1" value={fix.pts} style={{ width: 70 }} onChange={(e) => setFix({ ...fix, pts: Number(e.target.value) })} />
-            <button className="btn" onClick={() => run('stat fix', () => post('/api/admin/stat-fix', fix))}>
+            <button className="btn" disabled={!fix.player_id} onClick={() => run('stat fix', () => post('/api/admin/stat-fix', fix))}>
               Apply
             </button>
           </div>

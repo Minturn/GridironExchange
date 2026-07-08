@@ -165,3 +165,31 @@ def set_scoring_mode(body: ScoringModeIn, user: User = Depends(current_commissio
     league.settings_json = settings
     session.commit()
     return {"scoring_mode": body.mode}
+
+
+class RulesIn(BaseModel):
+    dividend_multiplier: float | None = Field(default=None, gt=0, le=100)
+    fee_rate: float | None = Field(default=None, ge=0, le=0.5)
+    share_cap: int | None = Field(default=None, ge=1, le=1000)
+
+
+@router.post("/rules")
+def set_rules(body: RulesIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Adjust the league's scoring/economy dials — the dividend rate ($/point/share)
+    is the main one. Takes effect on the next dividend run; never re-prices the market."""
+    league = session.get(League, user.league_id)
+    settings = dict(league.settings_json or {})
+    if body.dividend_multiplier is not None:
+        settings["dividend_multiplier"] = str(body.dividend_multiplier)
+    if body.fee_rate is not None:
+        settings["fee_rate"] = str(body.fee_rate)
+    if body.share_cap is not None:
+        settings["share_cap"] = body.share_cap
+    league.settings_json = settings
+    session.commit()
+    r = league.rules
+    return {
+        "dividend_multiplier": str(r.dividend_multiplier),
+        "fee_rate": str(r.fee_rate),
+        "share_cap": r.share_cap,
+    }

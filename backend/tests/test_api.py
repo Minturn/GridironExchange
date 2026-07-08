@@ -139,6 +139,7 @@ def test_manager_shows_another_managers_roster(client):
     assert body["username"] == "ryan" and body["is_you"] is False
     assert body["holdings"][0]["player_id"] == "cmc"
     assert body["holdings"][0]["shares"] == 4
+    assert body["scoring_mode"] == "market" and body["starters"] == []
     assert client.get("/api/manager/nobody").status_code == 404
 
 
@@ -156,6 +157,20 @@ def test_scoring_mode_and_lineup_flow(client, session, league):
     # can't start a player you don't hold
     assert client.post("/api/lineup", json={"player_ids": ["nobody"]}).status_code == 400
     assert client.get("/api/state").json()["scoring_mode"] == "lineup"
+
+
+def test_commissioner_can_adjust_dividend_rate(client, session, league):
+    register(client)  # commissioner
+    r = client.post("/api/admin/rules", json={"dividend_multiplier": 0.5})
+    assert r.status_code == 200 and r.json()["dividend_multiplier"] == "0.5"
+    # and it actually changes dividends
+    make_listing(session, league, make_player(session, pid="wr", name="Chase", pos="WR"))
+    client.post("/api/trade", json={"player_id": "wr", "side": "buy", "shares": 2})
+    client.post("/api/admin/stat-fix", json={"player_id": "wr", "week": 1, "pts": 10})
+    paid = client.post("/api/admin/dividends", json={"week": 1}).json()
+    assert paid["total_paid"] == 10.0  # 2 sh × 10 pts × 0.50
+    register(client, name="sal")  # not commissioner
+    assert client.post("/api/admin/rules", json={"dividend_multiplier": 0.9}).status_code == 403
 
 
 def test_scoring_mode_requires_commissioner(client):

@@ -75,6 +75,8 @@ export interface ManagerBook {
   is_you: boolean
   cash: number
   net_worth: number
+  scoring_mode: string
+  starters: string[]
   holdings: {
     player_id: string
     name: string
@@ -116,6 +118,7 @@ export interface LeagueState {
   market_opens_at: string | null
   scoring_mode: 'market' | 'relative' | 'lineup'
   lineup_slots: Record<string, number>
+  version: string
 }
 
 export interface LineupData {

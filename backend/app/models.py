@@ -41,7 +41,7 @@ DEFAULT_RULES = {
     # scoring: "market" (raw), "relative" (position-normalized), or "lineup"
     # (only starters score). Commissioner-selectable. See app/engine/scoring.py.
     "scoring_mode": "market",
-    "lineup_slots": {"QB": 1, "RB": 2, "WR": 2, "TE": 1, "FLEX": 1},
+    "lineup_slots": {"QB": 1, "RB": 2, "WR": 3, "TE": 1, "FLEX": 1},  # FLEX = RB/WR/TE
 }
 
 

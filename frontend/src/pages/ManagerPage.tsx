@@ -22,12 +22,19 @@ export function ManagerPage() {
   if (notFound) return <div className="page dim">No such manager in your league.</div>
   if (!book) return <div className="page dim">Loading…</div>
 
+  const starting = new Set(book.starters)
+  const lineupMode = book.scoring_mode === 'lineup'
+
   return (
     <div className="page">
       <section className="panel">
         <h2>
           {book.username}
-          {book.is_you ? ' (you)' : ''} <em>· net worth ${money(book.net_worth)} · cash ${money(book.cash)}</em>
+          {book.is_you ? ' (you)' : ''}{' '}
+          <em>
+            · net worth ${money(book.net_worth)} · cash ${money(book.cash)}
+            {lineupMode ? ' · ★ = starting lineup' : ''}
+          </em>
         </h2>
         <div className="tbl-wrap">
           <table>
@@ -43,6 +50,7 @@ export function ManagerPage() {
               {book.holdings.map((h) => (
                 <tr key={h.player_id} className="rowlink" onClick={() => nav(`/player/${h.player_id}`)}>
                   <td className="l">
+                    {lineupMode && starting.has(h.player_id) && <span className="starter">★ </span>}
                     <span className="pname">{h.name}</span>{' '}
                     <span className="pmeta">
                       {h.pos} · {h.team ?? 'FA'}

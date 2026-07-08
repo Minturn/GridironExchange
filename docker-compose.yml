@@ -1,0 +1,19 @@
+# Gridiron Exchange on a Synology NAS (DS220+ / Container Manager "Project").
+# Full step-by-step: docs/nas-hosting.md. Build context is the repo root (./Dockerfile).
+services:
+  app:
+    build: .
+    image: gridiron-exchange:latest
+    container_name: gridiron-exchange
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    environment:
+      # SQLite on a mounted volume → the league survives restarts and rebuilds
+      GRIDX_DATABASE_URL: "sqlite:////data/gridx.db"
+      # Use the SAME key as the Mac (backend/.env) so everyone stays logged in after the move
+      GRIDX_SECRET_KEY: "${GRIDX_SECRET_KEY}"
+      # Always-on NAS → let the season run itself: Tuesday settlement, nightly sync, game locks
+      GRIDX_ENABLE_SCHEDULER: "1"
+    volumes:
+      - ./data:/data

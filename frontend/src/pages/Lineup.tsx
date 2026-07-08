@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ApiError, get, post } from '../api'
 import type { LineupData } from '../types'
 
 const baseOf = (slotKey: string) => slotKey.replace(/\d+$/, '')
+const POS_RANK: Record<string, number> = { QB: 0, RB: 1, WR: 2, TE: 3, K: 4 }
 
 export function Lineup() {
   const [data, setData] = useState<LineupData | null>(null)
   const [assign, setAssign] = useState<Record<string, string>>({})
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const nav = useNavigate()
 
   function load() {
     get<LineupData>('/api/lineup')
@@ -48,12 +51,21 @@ export function Lineup() {
     )
 
   const usedIds = new Set(Object.values(assign).filter(Boolean))
+  const ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K']
+  const rosterSummary = ORDER.filter((p) => data.slots[p])
+    .map((p) => `${data.slots[p]} ${p}`)
+    .join(' · ')
+  const total = data.slot_keys.length
+  const filled = data.slot_keys.filter((k) => assign[k]).length
+  const complete = filled === total
   const eligibleFor = (slotKey: string, current: string) => {
     const base = baseOf(slotKey)
     return data.held
       .filter((h) => (base === 'FLEX' ? data.flex_positions.includes(h.pos) : h.pos === base))
       .filter((h) => !usedIds.has(h.player_id) || h.player_id === current)
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort(
+        (a, b) => (POS_RANK[a.pos] ?? 9) - (POS_RANK[b.pos] ?? 9) || a.name.localeCompare(b.name),
+      )
   }
 
   async function save() {
@@ -74,6 +86,12 @@ export function Lineup() {
           Your Lineup <em>· only these shares pay dividends</em>
         </h2>
         <div style={{ padding: '8px 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="lineup-status">
+            <span className="dim">Requires {rosterSummary} · FLEX = any RB/WR/TE</span>
+            <span className={complete ? 'ok-msg' : filled === 0 ? 'dim' : 'err'}>
+              {complete ? '✓ lineup full' : `${filled} of ${total} set`}
+            </span>
+          </div>
           {data.held.length === 0 ? (
             <p className="dim">
               You don’t hold anyone yet — buy players on The Floor, then come set your lineup.
@@ -94,6 +112,18 @@ export function Lineup() {
                       </option>
                     ))}
                   </select>
+                  {assign[key] ? (
+                    <button
+                      className="slot-link"
+                      type="button"
+                      title="View player — buy or sell"
+                      onClick={() => nav(`/player/${assign[key]}`)}
+                    >
+                      ↗
+                    </button>
+                  ) : (
+                    <span />
+                  )}
                 </div>
               ))}
               {msg && <p className={msg.ok ? 'ok-msg' : 'err'}>{msg.text}</p>}

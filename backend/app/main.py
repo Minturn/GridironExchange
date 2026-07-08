@@ -49,4 +49,14 @@ app.include_router(admin.router)
 
 _static = Path(__file__).resolve().parent.parent / settings.static_dir
 if _static.is_dir():
+    from fastapi.responses import FileResponse
+
+    _index = _static / "index.html"
+
+    @app.get("/", include_in_schema=False)
+    def index():
+        # never cache index.html → phones always pick up the latest JS/CSS bundle
+        # (hashed assets under /assets are safe to cache; the fresh index points at them)
+        return FileResponse(_index, headers={"Cache-Control": "no-store, must-revalidate"})
+
     app.mount("/", StaticFiles(directory=_static, html=True), name="frontend")

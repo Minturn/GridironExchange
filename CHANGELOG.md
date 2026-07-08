@@ -3,6 +3,27 @@
 Dates are when work shipped to the live demo (Tailscale Funnel, served from the Mac).
 League money only — never real currency.
 
+## 2026-07-06 — v0.4.0 · search/filters, version check, commissioner dials, NAS hosting
+
+App 0.3.0 → 0.4.0. No migration. Deployed live.
+
+### Added
+- **The Floor:** search (player/team) + position filter chips (ALL/QB/RB/WR/TE).
+- **Lineup:** sorted by position; tap **↗** to open a player and buy/sell; shows the roster
+  requirements and a **✓ full / X of 8 set** status.
+- **Manager view:** a ★ marks the players in each manager's starting lineup.
+- **Version check:** a version chip + **What's New** modal (`releaseNotes.ts`); a stale bundle
+  shows an **update ⟳** nudge (frontend `APP_VERSION` vs `/api/state` version).
+- **Commissioner:** searchable stat correction; adjustable **dividend rate**
+  (`/api/admin/rules`); scoring-mode selector.
+- Demo roster set to **1 QB · 2 RB · 3 WR · 1 TE · 1 FLEX**.
+- **Synology NAS hosting:** `docker-compose.yml` + `docs/nas-hosting.md` (DS220+ /
+  Container Manager, always-on, Tailscale funnel from the NAS).
+
+### Fixed
+- `index.html` now served with `Cache-Control: no-store` so phones always load the latest
+  bundle — fixes the stale-version problem where updates didn't appear.
+
 ## 2026-07-06 — v0.3.0 · scoring modes, lineups, mobile, live demo
 
 App version 0.2.0 → 0.3.0. **Migration `0002`** (adds `users.lineup_json`, nullable —

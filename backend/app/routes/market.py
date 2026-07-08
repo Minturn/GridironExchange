@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth import current_user, get_session
+from app.config import APP_VERSION
 from app.db import utcnow
 from app.engine import amm, scoring
 from app.engine.trading import TradeError, execute_trade
@@ -342,10 +343,18 @@ def manager(username: str, user: User = Depends(current_user), session: Session 
             }
         )
     holdings.sort(key=lambda r: -r["mark_value"])
+    league = session.get(League, user.league_id)
+    rules = league.rules
+    starters: list[str] = []
+    if rules.scoring_mode == scoring.LINEUP:
+        held = [{"id": p.id, "pos": p.pos, "weight": float(l.p0)} for h, l, p in rows]
+        starters = sorted(scoring.effective_starters(held, rules.lineup_slots, target.lineup_json))
     return {
         "username": target.username,
         "is_you": target.id == user.id,
         "cash": float(target.cash),
+        "scoring_mode": rules.scoring_mode,
+        "starters": starters,
         "holdings": holdings,
         "net_worth": float(amm.money(target.cash + mark_total)),
     }
@@ -510,4 +519,5 @@ def state(user: User = Depends(current_user), session: Session = Depends(get_ses
         "market_opens_at": opens_at_out,
         "scoring_mode": rules.scoring_mode,
         "lineup_slots": rules.lineup_slots,
+        "version": APP_VERSION,
     }
