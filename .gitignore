@@ -10,3 +10,4 @@ dist/
 .DS_Store
 gridx_*.db
 projections_*.json
+nas-deploy/

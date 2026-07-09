@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select
 
+from app.config import settings
 from app.db import SessionLocal, utcnow
 from app.engine.dividends import post_week_dividends
 from app.models import League, Listing, Player
@@ -108,9 +109,36 @@ def job_price_snapshot():
         session.commit()
 
 
+def job_backup_db():
+    """Nightly consistent snapshot of the SQLite DB → <db_dir>/backups, keep the last 14.
+    The league data lives only on the host disk, so this is its safety net."""
+    import glob
+    import os
+    import sqlite3
+
+    if not settings.database_url.startswith("sqlite"):
+        return
+    src = settings.database_url.replace("sqlite:///", "", 1)
+    if not os.path.exists(src):
+        log.warning("db backup: source %s missing", src)
+        return
+    backup_dir = os.path.join(os.path.dirname(src) or ".", "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    dest = os.path.join(backup_dir, f"gridx-{utcnow():%Y%m%d-%H%M%S}.db")
+    with sqlite3.connect(src) as s, sqlite3.connect(dest) as d:
+        s.backup(d)  # consistent snapshot even while the app is writing
+    for old in sorted(glob.glob(os.path.join(backup_dir, "gridx-*.db")))[:-14]:
+        try:
+            os.remove(old)
+        except OSError:
+            pass
+    log.info("db backup → %s", dest)
+
+
 def start_scheduler() -> BackgroundScheduler:
     sched = BackgroundScheduler(timezone="UTC")
     sched.add_job(job_sync_players, "cron", hour=9, minute=0)
+    sched.add_job(job_backup_db, "cron", hour=8, minute=30)  # nightly DB backup
     sched.add_job(job_price_snapshot, "cron", hour=6, minute=0)
     sched.add_job(job_game_locks, "interval", minutes=15)
     sched.add_job(job_tuesday_settlement, "cron", day_of_week="tue", hour=13, minute=10)

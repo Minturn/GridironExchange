@@ -10,6 +10,28 @@ Instead, **GitHub Actions builds it in the cloud** and publishes it to the GitHu
 Registry (GHCR); the NAS just **pulls the finished image**. So the NAS only needs the
 `docker-compose.yml` file, not the source.
 
+## ✅ As-deployed (2026-07-08) — the live setup + gotchas we hit
+
+- **Live URL:** `https://gridiron.tail3c5b35.ts.net`. Tailscale is installed on the NAS
+  (manual SPK; it's not in Package Center) and the funnel runs there — the Mac is not
+  involved. Device renamed to `gridiron` via `tailscale set --hostname=gridiron`, then
+  `funnel reset` + `funnel --bg 8200` to re-point.
+- **The GHCR package must be PUBLIC** (repo public is separate) — otherwise the NAS pull is
+  denied: Profile → Packages → gridironexchange → Package settings → Public.
+- **Synology has SFTP disabled**, so `scp` fails ("subsystem request failed"). Copy files
+  with `cat local | ssh nas 'cat > /path'` instead.
+- **SSH keys need a permission fix** (Synology leaves home group-writable):
+  `chmod 755 ~ && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys`.
+- **funnel needs root** — either `sudo tailscale funnel …` once, or set the operator:
+  `sudo tailscale set --operator=<user>` (then funnel works without sudo).
+- **Secret** is inlined directly in the NAS `docker-compose.yml` (no `.env`, since File
+  Station couldn't create dotfiles). It is NOT in git (`nas-deploy/` is gitignored).
+- **Update flow:** push to `master` → Action rebuilds → over Tailscale
+  `cd /volume1/docker/gridiron && sudo /usr/local/bin/docker compose up -d` (recreates with
+  the new image; data volume survives). Recreate fires a "stopped unexpectedly" email — benign.
+- **Backups:** the app self-backs-up the DB nightly to `data/backups/` (keep 14). That folder
+  lives on the NAS volume; back the NAS up too (Hyper Backup) for off-box safety.
+
 ## What you'll end up with
 - The app as a container on the NAS, database on a NAS folder (survives reboots/updates).
 - The season scheduler ON (Tuesday dividends, nightly sync, game locks run themselves).

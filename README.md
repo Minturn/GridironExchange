@@ -46,8 +46,9 @@ docs/mock/       "The Floor" UI mock (49ers colors; gold=up, scarlet=down; no mo
 
 ## Status
 
-**Live demo running** (v0.3.0) from the Mac via Tailscale Funnel; full change log in
-[`CHANGELOG.md`](CHANGELOG.md).
+**Live on the always-on Synology NAS** (v0.4.0) at **https://gridiron.tail3c5b35.ts.net**
+(invite code `kickoff`); nightly DB backup. Setup: [`docs/nas-hosting.md`](docs/nas-hosting.md);
+full change log in [`CHANGELOG.md`](CHANGELOG.md).
 
 - [x] Phase 1 — engine: models + migrations, AMM trading, idempotent dividends,
       Sleeper provider, tests (44 total)
@@ -62,8 +63,10 @@ docs/mock/       "The Floor" UI mock (49ers colors; gold=up, scarlet=down; no mo
 - [x] **Scoring modes** — commissioner-selectable `market` / `relative` / `lineup`
       (fixes QB dominance); lineup roster + `Lineup` tab; view other managers' rosters;
       commissioner-set Week-1 start time with countdown
-- [ ] OPERATIONAL — friends demo underway (2 members); Fly.io launch (Phase B) +
-      Opening Bell for the real season (checklist at the end of `docs/hosting.md`)
+- [x] **DEPLOYED** — live on the Synology DS220+ (Container Manager + GHCR image via GitHub
+      Actions), public Tailscale Funnel URL, scheduler + nightly backup on; 2 members
+- [ ] SEASON — Opening Bell with real projections at kickoff; optional Fly.io / custom
+      domain later (`docs/hosting.md`, `docs/nas-hosting.md`)
 
 ### Known issues
 - Expired/invalid session shows "Loading…" instead of redirecting to sign-in (needs a

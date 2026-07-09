@@ -3,6 +3,25 @@
 Dates are when work shipped to the live demo (Tailscale Funnel, served from the Mac).
 League money only — never real currency.
 
+## 2026-07-08 — deployed to the Synology NAS + nightly DB backup
+
+Went live on the always-on NAS (no app-version bump — infrastructure + one internal job).
+
+### Hosting (live)
+- Running on the **Synology DS220+** via Container Manager, pulling the GHCR image built by
+  GitHub Actions. **Public URL `https://gridiron.tail3c5b35.ts.net`** (Tailscale Funnel from
+  the NAS; device renamed home→gridiron). Scheduler on; league DB on the NAS volume.
+- Managed over Tailscale — the home LAN isolates the Mac from the NAS (a UniFi/Policy-Engine
+  issue tied to IoT-network isolation, unrelated to the app); Tailscale tunnels around it.
+- Deployed-reality gotchas captured in `docs/nas-hosting.md` (GHCR package must be public;
+  Synology has SFTP off so write files via `cat | ssh 'cat >'`; home-dir perms block SSH keys;
+  funnel needs root/operator).
+
+### Added
+- **Nightly DB backup** — `app/jobs.py` `job_backup_db` (08:30 UTC): a consistent SQLite
+  snapshot to `data/backups/`, keeping the last 14. The league DB lives only on the NAS disk,
+  so this is its safety net. Plus a one-off manual snapshot taken at deploy.
+
 ## 2026-07-06 — v0.4.0 · search/filters, version check, commissioner dials, NAS hosting
 
 App 0.3.0 → 0.4.0. No migration. Deployed live.
