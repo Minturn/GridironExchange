@@ -117,6 +117,8 @@ export interface LeagueState {
   market_open: boolean
   market_opens_at: string | null
   scoring_mode: 'market' | 'relative' | 'lineup'
+  dividend_multiplier: number
+  in_game_trading: 'locked' | 'live'
   lineup_slots: Record<string, number>
   version: string
 }

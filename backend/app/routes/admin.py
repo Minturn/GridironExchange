@@ -167,6 +167,31 @@ def set_scoring_mode(body: ScoringModeIn, user: User = Depends(current_commissio
     return {"scoring_mode": body.mode}
 
 
+class InGameTradingIn(BaseModel):
+    mode: str = Field(pattern="^(locked|live)$")
+
+
+@router.post("/in-game-trading")
+def set_in_game_trading(body: InGameTradingIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """'locked' — a player's stock freezes at his kickoff (pilot default, no trading on
+    live info). 'live' — stays tradeable during games (the product feature). Dividends
+    settle by the kickoff snapshot either way, so this is safe to flip. Switching to
+    'live' only stops NEW kickoff locks; players already locked this week clear on the
+    next Tuesday run (or via Resume)."""
+    league = session.get(League, user.league_id)
+    settings = dict(league.settings_json or {})
+    settings["in_game_trading"] = body.mode
+    league.settings_json = settings
+    if body.mode == "live":
+        # clear any game-locks already applied this week so the switch takes effect now.
+        # (Opening-bell / manual pause use the same column; re-set those afterward if needed.)
+        session.execute(
+            update(Listing).where(Listing.league_id == league.id).values(locked_until=None)
+        )
+    session.commit()
+    return {"in_game_trading": body.mode}
+
+
 class RulesIn(BaseModel):
     dividend_multiplier: float | None = Field(default=None, gt=0, le=100)
     fee_rate: float | None = Field(default=None, ge=0, le=0.5)

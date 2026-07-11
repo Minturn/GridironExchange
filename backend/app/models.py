@@ -42,6 +42,10 @@ DEFAULT_RULES = {
     # (only starters score). Commissioner-selectable. See app/engine/scoring.py.
     "scoring_mode": "market",
     "lineup_slots": {"QB": 1, "RB": 2, "WR": 3, "TE": 1, "FLEX": 1},  # FLEX = RB/WR/TE
+    # in-game trading: "locked" (pilot default — a player's stock freezes at kickoff,
+    # no trading on live info) or "live" (the product feature — stays tradeable during
+    # the game; dividends still settle by the kickoff snapshot). See app/jobs.py.
+    "in_game_trading": "locked",
 }
 
 
@@ -56,6 +60,7 @@ class LeagueRules:
     starting_cash: Decimal
     scoring_mode: str
     lineup_slots: dict
+    in_game_trading: str
 
 
 class League(Base):
@@ -82,6 +87,7 @@ class League(Base):
             starting_cash=Decimal(str(raw["starting_cash"])),
             scoring_mode=str(raw.get("scoring_mode") or "market"),
             lineup_slots=dict(raw.get("lineup_slots") or DEFAULT_RULES["lineup_slots"]),
+            in_game_trading=str(raw.get("in_game_trading") or "locked"),
         )
 
 
@@ -173,6 +179,28 @@ class Dividend(Base):
     pts: Mapped[Decimal] = mapped_column(POINTS)
     amount: Mapped[Decimal] = mapped_column(MONEY)
     ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class HoldingSnapshot(Base):
+    """Dividend record-date: who held a player at his game's kickoff, for one week.
+
+    The Tuesday dividend pays off this snapshot when it exists, so trades after kickoff
+    — the whole point of live in-game trading — can neither buy into nor dodge a
+    dividend (you earn a player's points by owning him *before* his game, like a real
+    ex-dividend date). Written by the game-lock job at kickoff. When absent (manual
+    commissioner runs, or no scheduler), the dividend falls back to live holdings, so
+    existing behavior is unchanged where no snapshot was taken.
+    """
+
+    __tablename__ = "holding_snapshots"
+    __table_args__ = (UniqueConstraint("league_id", "week", "player_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
+    week: Mapped[int] = mapped_column(Integer)
+    player_id: Mapped[str] = mapped_column(ForeignKey("players.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    shares: Mapped[int] = mapped_column(Integer)
 
 
 class PriceHistory(Base):

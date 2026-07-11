@@ -3,6 +3,32 @@
 Dates are when work shipped to the live demo (Tailscale Funnel, served from the Mac).
 League money only — never real currency.
 
+## 2026-07-09 — v0.5.0: live in-game trading + scoring visibility + dividend record-date
+
+Moves the pilot toward the product's marquee feature (live trading) safely, and makes the
+scoring rules visible to players. Requires the `0003_holding_snapshot` migration (runs on
+boot). Existing behavior is unchanged until the game-lock job starts writing snapshots.
+
+### Scoring visibility (UI)
+- New masthead **Scoring** chip → a "How Scoring Works" modal explaining market / relative /
+  lineup and what each does to your dividends. `/api/state` now returns `dividend_multiplier`
+  and `in_game_trading`.
+- Commissioner shows the **current** scoring mode and dividend rate (dropdown pre-selects the
+  active mode instead of a blank "choose…"), with a mid-season-change warning.
+
+### Dividend record-date (engine)
+- New `holding_snapshots` table + `snapshot_holdings()`: the game-lock job records who holds a
+  player **at his kickoff**, and `post_week_dividends` pays off that snapshot when present
+  (falls back to live holdings otherwise). Closes the Tue 13:00–13:10 dividend-sniping gap and
+  makes live trading safe — you earn a player's points by owning him before his game.
+
+### Live in-game trading (commissioner toggle)
+- League setting `in_game_trading` = `locked` (default; stock freezes at kickoff) or `live`
+  (stays tradeable during games — panic-sell the injury, chase the hot hand). Dividends settle
+  by the kickoff snapshot either way. A "● Live" masthead badge shows when it's on. Real-time
+  point *accrual* (buy at halftime, earn the second half) still needs a paid live feed —
+  deliberately deferred; this is the free, NAS-hostable version.
+
 ## 2026-07-08 — deployed to the Synology NAS + nightly DB backup
 
 Went live on the always-on NAS (no app-version bump — infrastructure + one internal job).

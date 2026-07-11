@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.engine import scoring
 from app.engine.amm import money
-from app.models import Dividend, Holding, League, Listing, Player, StatWeek, User
+from app.models import Dividend, Holding, HoldingSnapshot, League, Listing, Player, StatWeek, User
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,42 @@ class DividendRun:
     week: int
     rows_posted: int
     total_paid: Decimal
+
+
+def snapshot_holdings(session: Session, league_id: int, week: int, player_ids) -> int:
+    """Record who holds each given player *right now* as the dividend record-date for
+    `week` — called at each player's kickoff. Idempotent per (league, week, player): a
+    player already snapshotted this week is left untouched (kickoff holdings are frozen),
+    so re-running the lock job never overwrites the record. Returns rows written."""
+    written = 0
+    for pid in player_ids:
+        already = session.execute(
+            select(HoldingSnapshot.id)
+            .where(
+                HoldingSnapshot.league_id == league_id,
+                HoldingSnapshot.week == week,
+                HoldingSnapshot.player_id == pid,
+            )
+            .limit(1)
+        ).first()
+        if already:
+            continue
+        for h in session.execute(
+            select(Holding).where(
+                Holding.league_id == league_id,
+                Holding.player_id == pid,
+                Holding.shares > 0,
+            )
+        ).scalars():
+            session.add(
+                HoldingSnapshot(
+                    league_id=league_id, week=week, player_id=pid,
+                    user_id=h.user_id, shares=h.shares,
+                )
+            )
+            written += 1
+    session.commit()
+    return written
 
 
 def _starters_by_user(session: Session, league_id: int, rules, holdings, pos_map, p0_map) -> dict:
@@ -72,9 +108,19 @@ def post_week_dividends(session: Session, league_id: int, week: int) -> Dividend
             select(Dividend).where(Dividend.league_id == league_id, Dividend.week == week)
         ).scalars()
     }
+    # Pay off the kickoff record-date snapshot when it exists; otherwise fall back to
+    # live holdings (manual commissioner runs, or weeks the scheduler didn't snapshot).
+    # Snapshot rows and Holding rows share .player_id/.user_id/.shares, so the loop below
+    # is identical for both.
     holdings = session.execute(
-        select(Holding).where(Holding.league_id == league_id, Holding.shares > 0)
+        select(HoldingSnapshot).where(
+            HoldingSnapshot.league_id == league_id, HoldingSnapshot.week == week
+        )
     ).scalars().all()
+    if not holdings:
+        holdings = session.execute(
+            select(Holding).where(Holding.league_id == league_id, Holding.shares > 0)
+        ).scalars().all()
 
     pos_map = {p.id: p.pos for p in session.execute(select(Player)).scalars()}
     p0_map = {

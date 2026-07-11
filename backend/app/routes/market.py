@@ -518,6 +518,8 @@ def state(user: User = Depends(current_user), session: Session = Depends(get_ses
         "market_open": market_open,
         "market_opens_at": opens_at_out,
         "scoring_mode": rules.scoring_mode,
+        "dividend_multiplier": float(rules.dividend_multiplier),
+        "in_game_trading": rules.in_game_trading,
         "lineup_slots": rules.lineup_slots,
         "version": APP_VERSION,
     }

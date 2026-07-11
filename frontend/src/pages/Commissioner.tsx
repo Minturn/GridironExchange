@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { get, post, ApiError } from '../api'
+import type { LeagueState } from '../types'
 
 interface P {
   player_id: string
@@ -29,10 +30,17 @@ export function Commissioner() {
   const [players, setPlayers] = useState<P[]>([])
   const [fixSearch, setFixSearch] = useState('')
   const [divRate, setDivRate] = useState('')
+  const [cur, setCur] = useState<LeagueState | null>(null)
 
   useEffect(() => {
     get<P[]>('/api/market')
       .then((m) => setPlayers(m.map((r) => ({ player_id: r.player_id, name: r.name, pos: r.pos, team: r.team }))))
+      .catch(() => {})
+    get<LeagueState>('/api/state')
+      .then((s) => {
+        setCur(s)
+        setMode(s.scoring_mode)
+      })
       .catch(() => {})
   }, [])
 
@@ -78,23 +86,81 @@ export function Commissioner() {
 
         <Card
           title="Scoring mode"
-          blurb="How dividends are scored (never re-prices the market). Market: every share pays raw points — QBs dominate. Relative: points normalized by position, so a QB and RB share pay about the same. Lineup: only your starting-lineup shares pay — one QB slot, like a normal league."
+          blurb="How weekly points become dividends (only dividends — never re-prices the market or moves positions, so it's safe to switch). Market: every share pays raw points; simplest, position choice is nearly free. Relative: points normalized by position — tilts value toward WR/TE. Lineup: only your starting-lineup shares pay, one QB slot like a normal league."
         >
           <div className="row">
+            <span className="dim" style={{ fontSize: 12 }}>
+              Current: <b style={{ color: 'var(--gold-hi)' }}>{cur ? cur.scoring_mode : '…'}</b>
+            </span>
+          </div>
+          <div className="row">
             <select value={mode} onChange={(e) => setMode(e.target.value)} aria-label="Scoring mode">
-              <option value="">choose…</option>
               <option value="market">Market — raw points</option>
               <option value="relative">Relative — position-normalized</option>
               <option value="lineup">Lineup — starters only</option>
             </select>
             <button
               className="btn solid"
-              disabled={!mode}
-              onClick={() => run('scoring mode', () => post('/api/admin/scoring-mode', { mode }))}
+              disabled={!mode || mode === cur?.scoring_mode}
+              onClick={() =>
+                run('scoring mode', () => post('/api/admin/scoring-mode', { mode })).then(() =>
+                  setCur((c) => (c ? { ...c, scoring_mode: mode as LeagueState['scoring_mode'] } : c)),
+                )
+              }
             >
               Set mode
             </button>
           </div>
+          {cur && mode !== cur.scoring_mode && (
+            <p className="err" style={{ fontSize: 11.5 }}>
+              Mid-season change: this reshapes everyone’s weekly income starting the next dividend run.
+              Positions and prices are untouched.
+            </p>
+          )}
+        </Card>
+
+        <Card
+          title="In-game trading"
+          blurb="Locked: a player's stock freezes at his kickoff — no trading on live info (pilot default, everyone on equal footing). Live: stocks stay tradeable during games so you can panic-sell an injury or chase a hot hand. Dividends settle by the kickoff snapshot either way, so switching is safe."
+        >
+          <div className="row">
+            <span className="dim" style={{ fontSize: 12 }}>
+              Current:{' '}
+              <b style={{ color: cur?.in_game_trading === 'live' ? 'var(--scarlet-hi)' : 'var(--gold-hi)' }}>
+                {cur ? cur.in_game_trading : '…'}
+              </b>
+            </span>
+          </div>
+          <div className="row">
+            <button
+              className="btn"
+              disabled={cur?.in_game_trading === 'locked'}
+              onClick={() =>
+                run('in-game trading', () => post('/api/admin/in-game-trading', { mode: 'locked' })).then(() =>
+                  setCur((c) => (c ? { ...c, in_game_trading: 'locked' } : c)),
+                )
+              }
+            >
+              Lock at kickoff
+            </button>
+            <button
+              className="btn danger"
+              disabled={cur?.in_game_trading === 'live'}
+              onClick={() =>
+                run('in-game trading', () => post('/api/admin/in-game-trading', { mode: 'live' })).then(() =>
+                  setCur((c) => (c ? { ...c, in_game_trading: 'live' } : c)),
+                )
+              }
+            >
+              Go live
+            </button>
+          </div>
+          {cur?.in_game_trading === 'live' && (
+            <p className="err" style={{ fontSize: 11.5 }}>
+              Live: rewards whoever’s watching the game and fastest to react. Great drama, but not
+              everyone can be online — worth watching how it feels.
+            </p>
+          )}
         </Card>
 
         <Card
@@ -102,12 +168,17 @@ export function Commissioner() {
           blurb="$ paid per fantasy point, per share, each week — the main scoring dial. Higher = bigger weekly payouts. Takes effect on the next dividend run; never re-prices the market. Default 0.30."
         >
           <div className="row">
+            <span className="dim" style={{ fontSize: 12 }}>
+              Current: <b style={{ color: 'var(--gold-hi)' }}>${cur ? cur.dividend_multiplier.toFixed(2) : '…'}</b>/pt
+            </span>
+          </div>
+          <div className="row">
             <label>$/pt</label>
             <input
               type="number"
               step="0.05"
               min={0}
-              placeholder="0.30"
+              placeholder={cur ? cur.dividend_multiplier.toFixed(2) : '0.30'}
               value={divRate}
               style={{ width: 80 }}
               onChange={(e) => setDivRate(e.target.value)}

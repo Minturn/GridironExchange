@@ -2,7 +2,7 @@
 // at the top. The masthead shows this version; if it differs from the server's
 // version (from /api/state), the app nudges a reload — so everyone can confirm
 // they're on the same build.
-export const APP_VERSION = '0.4.0'
+export const APP_VERSION = '0.5.0'
 
 export interface Release {
   version: string
@@ -11,6 +11,16 @@ export interface Release {
 }
 
 export const RELEASE_NOTES: Release[] = [
+  {
+    version: '0.5.0',
+    date: 'Jul 9, 2026',
+    notes: [
+      'New “Scoring” chip in the header — tap it for a plain-English guide to how your league’s mode (market / relative / lineup) turns points into dividends.',
+      'Dividends now settle by a kickoff snapshot: you earn a player’s points by owning him before his game, so nobody can buy in after kickoff just to grab a dividend.',
+      'Commissioner: In-game trading switch — keep stocks locked at kickoff (default) or “Go live” to trade during games. A “● Live” badge shows when it’s on.',
+      'Commissioner now shows the current scoring mode and dividend rate, with a heads-up before a mid-season change.',
+    ],
+  },
   {
     version: '0.4.0',
     date: 'Jul 6, 2026',

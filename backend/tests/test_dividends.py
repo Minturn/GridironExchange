@@ -83,3 +83,50 @@ def test_wrong_week_or_no_holdings_is_a_noop(session, league, holding_setup):
     add_stat(session, league, player, week=6, pts="20.00")
     run = post_week_dividends(session, league.id, week=5)
     assert run.rows_posted == 0
+
+
+def test_dividend_pays_kickoff_snapshot_not_late_buyers(session, league):
+    """Record-date: the holder at kickoff earns the dividend; someone who buys the
+    player AFTER kickoff (live trading, or the Tue 6:00-6:10 reopen gap) does not.
+    This is the guard that makes live in-game trading safe."""
+    from app.engine.dividends import snapshot_holdings
+    from app.models import HoldingSnapshot
+
+    early = make_user(session, league, username="early")
+    late = make_user(session, league, username="late")
+    player = make_player(session)
+    make_listing(session, league, player)
+
+    # `early` holds 10 at kickoff → snapshot the record date for week 5
+    execute_trade(session, user_id=early.id, player_id=player.id, side="buy", shares=10)
+    rows = snapshot_holdings(session, league.id, week=5, player_ids=[player.id])
+    assert rows == 1
+
+    # After kickoff: early dumps all, late scoops them up (the snipe we're preventing)
+    execute_trade(session, user_id=early.id, player_id=player.id, side="sell", shares=10)
+    execute_trade(session, user_id=late.id, player_id=player.id, side="buy", shares=10)
+
+    add_stat(session, league, player, week=5, pts="20.00")
+    run = post_week_dividends(session, league.id, week=5)
+
+    divs = {
+        d.user_id: d
+        for d in session.execute(select(Dividend).where(Dividend.week == 5)).scalars()
+    }
+    assert early.id in divs, "kickoff holder must be paid"
+    assert late.id not in divs, "post-kickoff buyer must NOT be paid"
+    assert divs[early.id].shares_held == 10
+    assert run.rows_posted == 1
+
+    # idempotent: re-running the snapshot at the next poll doesn't overwrite the record
+    assert snapshot_holdings(session, league.id, week=5, player_ids=[player.id]) == 0
+
+
+def test_no_snapshot_falls_back_to_live_holdings(session, league, holding_setup):
+    """Backward-compat: weeks with no snapshot (manual runs, no scheduler) pay live
+    holdings exactly as before."""
+    user, _, player = holding_setup
+    add_stat(session, league, player, week=5, pts="20.00")
+    run = post_week_dividends(session, league.id, week=5)
+    assert run.rows_posted == 1
+    assert run.total_paid > 0

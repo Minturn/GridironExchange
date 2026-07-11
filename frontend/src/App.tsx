@@ -5,6 +5,7 @@ import type { LeagueState, MarketRow, Me } from './types'
 import { Ticker } from './components/Ticker'
 import { OpeningBellBanner } from './components/OpeningBell'
 import { WhatsNew } from './components/WhatsNew'
+import { ScoringInfo } from './components/ScoringInfo'
 import { APP_VERSION } from './releaseNotes'
 import { Login } from './pages/Login'
 import { Floor } from './pages/Floor'
@@ -22,6 +23,7 @@ export default function App() {
   const [market, setMarket] = useState<MarketRow[]>([])
   const [state, setState] = useState<LeagueState | null>(null)
   const [whatsNew, setWhatsNew] = useState(false)
+  const [scoringInfo, setScoringInfo] = useState(false)
 
   const refreshMe = useCallback(() => {
     get<Me>('/api/auth/me')
@@ -63,6 +65,25 @@ export default function App() {
           {state && (
             <span className="chip live">
               {state.league_name} · Wk {state.current_week}
+            </span>
+          )}
+          {state && (
+            <button
+              className="chip"
+              onClick={() => setScoringInfo(true)}
+              type="button"
+              title="How scoring works"
+            >
+              Scoring · {state.scoring_mode}
+            </button>
+          )}
+          {state?.in_game_trading === 'live' && (
+            <span
+              className="chip"
+              style={{ borderColor: 'var(--scarlet)', color: 'var(--scarlet-hi)' }}
+              title="In-game trading is live — stocks stay tradeable during games"
+            >
+              ● Live
             </span>
           )}
           <span>
@@ -122,6 +143,13 @@ export default function App() {
         GRIDIRON EXCHANGE · league money only — never real currency · gold = up · scarlet = down
       </p>
       {whatsNew && <WhatsNew onClose={() => setWhatsNew(false)} />}
+      {scoringInfo && state && (
+        <ScoringInfo
+          mode={state.scoring_mode}
+          rate={state.dividend_multiplier}
+          onClose={() => setScoringInfo(false)}
+        />
+      )}
     </HashRouter>
   )
 }
