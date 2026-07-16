@@ -27,8 +27,11 @@ Registry (GHCR); the NAS just **pulls the finished image**. So the NAS only need
 - **Secret** is inlined directly in the NAS `docker-compose.yml` (no `.env`, since File
   Station couldn't create dotfiles). It is NOT in git (`nas-deploy/` is gitignored).
 - **Update flow:** push to `master` → Action rebuilds → over Tailscale
-  `cd /volume1/docker/gridiron && sudo /usr/local/bin/docker compose up -d` (recreates with
-  the new image; data volume survives). Recreate fires a "stopped unexpectedly" email — benign.
+  `cd /volume1/docker/gridiron && sudo /usr/local/bin/docker compose pull && sudo /usr/local/bin/docker compose up -d`.
+  ⚠ **The `pull` is required** — `docker compose up -d` alone reuses the *cached* image and
+  silently ships nothing. The data volume survives. Recreate fires a "stopped unexpectedly"
+  email — benign. **Verify the deploy** by the served bundle hash changing:
+  `curl -s https://gridiron.tail3c5b35.ts.net/ | grep -oE '/assets/[^"]+\.js'`.
 - **Backups:** the app self-backs-up the DB nightly to `data/backups/` (keep 14). That folder
   lives on the NAS volume; back the NAS up too (Hyper Backup) for off-box safety.
 

@@ -29,6 +29,41 @@ boot). Existing behavior is unchanged until the game-lock job starts writing sna
   point *accrual* (buy at halftime, earn the second half) still needs a paid live feed —
   deliberately deferred; this is the free, NAS-hostable version.
 
+## 2026-07-15 — market opened (298 players), live in-game trading, order-pad default
+
+Operational, plus one small UI fix. No version bump (trivial tweak).
+
+### Shipped
+- **Order pad defaults to 1 share** (was 5) — `frontend/src/pages/PlayerPage.tsx`
+  (commit `02aa87a`); built by Actions, deployed via `docker compose pull && up -d`.
+- **Market opened: 298 tradeable players** (was 17 demo). Season projections built from
+  Sleeper 2026 (18-week PPR sum, ≥40 pts → 293) and loaded through **Commissioner → "Build
+  the market"** (Opening Bell → `create_listings`, additive — existing listings untouched).
+  Now 35 QB / 75 RB / 127 WR / 61 TE. Builder: `scripts/projections_snapshot.py` logic.
+- **In-game trading → `live`** (commissioner): stocks stay tradeable during games; dividends
+  still settle by the kickoff record-date snapshot, so switching is safe.
+- Scoring mode confirmed **`market`**. Note: raw points are **Sleeper PPR** and are *not*
+  customizable (no per-stat scoring-rules editor) — by design for the pilot.
+
+### Ops / fixed
+- **Deploy needs `pull`.** `docker compose up -d` reuses the cached image; updates require
+  `docker compose pull && docker compose up -d`. Corrected in `docs/nas-hosting.md`; verify a
+  deploy by the served JS bundle hash changing.
+- Two-DB **split-brain** (the Mac app was left running after the NAS move, so trades split
+  across two databases) reconciled onto the NAS earlier this session; nightly backups
+  confirmed running 07-09 → 07-15.
+
+## 2026-07-11 — v0.5.0 · live in-game trading, dividend record-date, Scoring Lab
+
+App 0.4.0 → 0.5.0 (commits `133a7e0`, `4ff7f7c`). Deployed to the NAS.
+
+### Added
+- **In-game trading toggle** — per-league `in_game_trading` ∈ `locked`/`live` (commissioner).
+  `live` keeps a player's stock tradeable through his game instead of freezing at kickoff; a
+  kickoff **record-date snapshot** (`snapshot_holdings`) settles dividends by kickoff ownership
+  either way, so switching is safe. `● Live` badge shows when it's on.
+- **Shareable Scoring Lab** page (`/scoring-lab.html`) to explore how the scoring modes play out.
+
 ## 2026-07-08 — deployed to the Synology NAS + nightly DB backup
 
 Went live on the always-on NAS (no app-version bump — infrastructure + one internal job).
