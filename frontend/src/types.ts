@@ -109,6 +109,42 @@ export interface FeedEvent {
   total?: number
 }
 
+export interface CashEvent {
+  ts: string | null
+  kind: 'start' | 'buy' | 'sell' | 'dividend'
+  delta: number
+  balance: number
+  player_id: string | null
+  player_name: string | null
+  shares: number | null
+  week: number | null
+  fee: number | null
+}
+
+export interface CashHistory {
+  username: string
+  starting_cash: number
+  cash: number
+  computed_cash: number
+  reconciled: boolean
+  events: CashEvent[]
+}
+
+export interface AuditRow {
+  username: string
+  cash: number
+  computed_cash: number
+  drift: number
+  ok: boolean
+}
+
+export interface AuditReport {
+  league: string
+  starting_cash: number
+  all_ok: boolean
+  members: AuditRow[]
+}
+
 export interface LeagueState {
   season: number
   league_name: string

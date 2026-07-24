@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.auth import current_user, get_session
 from app.config import APP_VERSION
 from app.db import utcnow
-from app.engine import amm, scoring
+from app.engine import amm, ledger, scoring
 from app.engine.trading import TradeError, execute_trade
 from app.models import Dividend, Holding, League, Listing, Player, PriceHistory, StatWeek, Trade, User
 
@@ -305,6 +305,41 @@ def portfolio(user: User = Depends(current_user), session: Session = Depends(get
         "cash": float(user.cash),
         "holdings": holdings,
         "net_worth": float(amm.money(user.cash + mark_total)),
+    }
+
+
+@router.get("/cash-history")
+def cash_history(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    """Your money, event by event: opening balance, every buy/sell, every dividend,
+    with the running cash after each. `reconciled` is False if replaying the ledgers
+    doesn't reproduce your stored cash — the personal-scope version of the audit."""
+    league = session.get(League, user.league_id)
+    starting = league.rules.starting_cash
+    events = ledger.cash_events(session, user.id, starting)
+    computed = events[-1].balance
+    names = {p.id: p.name for p in session.execute(select(Player)).scalars()}
+    out = [
+        {
+            "ts": e.ts.isoformat() if e.ts else None,
+            "kind": e.kind,
+            "delta": float(e.delta),
+            "balance": float(e.balance),
+            "player_id": e.player_id,
+            "player_name": names.get(e.player_id) if e.player_id else None,
+            "shares": e.shares,
+            "week": e.week,
+            "fee": float(e.fee) if e.fee is not None else None,
+        }
+        for e in events
+    ]
+    out.reverse()  # newest first for display
+    return {
+        "username": user.username,
+        "starting_cash": float(starting),
+        "cash": float(user.cash),
+        "computed_cash": float(computed),
+        "reconciled": amm.money(user.cash - computed) == Decimal("0.00"),
+        "events": out,
     }
 
 

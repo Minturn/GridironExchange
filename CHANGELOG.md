@@ -3,6 +3,33 @@
 Dates are when work shipped to the live demo (Tailscale Funnel, served from the Mac).
 League money only — never real currency.
 
+## 2026-07-23 — v0.6.0: cash ledger + ledger-vs-cash audit
+
+Makes every dollar traceable. Prompted by a real "I have more cash than I remember and no way
+to know how" report: in the offseason the Tuesday job is guarded off (`season_type != regular`),
+so no dividends run — the balance change was a sell-off, but nothing in the UI showed it. No
+schema change; reads the existing immutable `trades` + `dividends` ledgers.
+
+### Cash Ledger (player-facing)
+- New **`GET /api/cash-history`** + **"Cash Ledger"** tab: opening balance, every buy/sell (with
+  fee), every dividend, newest first, each with the running cash after it. Answers "where did
+  this balance come from" directly.
+- **Reconciliation is built in.** New `app/engine/ledger.py` replays the ledgers from
+  `starting_cash` (`buy = −(gross+fee)`, `sell = +(gross−fee)`, `dividend = +amount` — all stored
+  cent-rounded) and confirms the result equals the stored `cash` column to the cent. The page
+  shows a ✓ chip, or a loud warning if it ever fails.
+
+### Money audit (commissioner)
+- New **`GET /api/admin/audit`** + a **"Money audit"** card: replays every member's ledger against
+  their cash and flags per-member drift with the exact dollar amount. The safety net to have in
+  place before the deferred §14 live-accrual work, which mutates balances continuously.
+- Note: reconciles against the league's *current* `starting_cash`; changing that rule after
+  members are seeded will surface as drift (by design).
+
+### Tests
+- `backend/tests/test_ledger.py` (6): reconciliation across buys/sells/dividends, event ordering,
+  per-trade `cash_after` match, drift detection, and both endpoints. Full suite 55 passing.
+
 ## 2026-07-09 — v0.5.0: live in-game trading + scoring visibility + dividend record-date
 
 Moves the pilot toward the product's marquee feature (live trading) safely, and makes the

@@ -11,6 +11,7 @@ import { Login } from './pages/Login'
 import { Floor } from './pages/Floor'
 import { PlayerPage } from './pages/PlayerPage'
 import { Portfolio } from './pages/Portfolio'
+import { CashHistory } from './pages/CashHistory'
 import { Leaderboard } from './pages/Leaderboard'
 import { ManagerPage } from './pages/ManagerPage'
 import { Lineup } from './pages/Lineup'
@@ -109,6 +110,9 @@ export default function App() {
           <NavLink to="/portfolio" className={({ isActive }) => (isActive ? 'active' : '')}>
             Your Book
           </NavLink>
+          <NavLink to="/cash" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Cash Ledger
+          </NavLink>
           {state?.scoring_mode === 'lineup' && (
             <NavLink to="/lineup" className={({ isActive }) => (isActive ? 'active' : '')}>
               Lineup
@@ -133,6 +137,7 @@ export default function App() {
         <Route path="/" element={<Floor rows={market} />} />
         <Route path="/player/:playerId" element={<PlayerPage onCashChange={refreshMe} />} />
         <Route path="/portfolio" element={<Portfolio />} />
+        <Route path="/cash" element={<CashHistory />} />
         <Route path="/standings" element={<Leaderboard />} />
         <Route path="/manager/:username" element={<ManagerPage />} />
         <Route path="/lineup" element={<Lineup />} />

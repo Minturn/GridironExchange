@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { get, post, ApiError } from '../api'
-import type { LeagueState } from '../types'
+import { get, post, money, ApiError } from '../api'
+import type { AuditReport, LeagueState } from '../types'
 
 interface P {
   player_id: string
@@ -31,6 +31,7 @@ export function Commissioner() {
   const [fixSearch, setFixSearch] = useState('')
   const [divRate, setDivRate] = useState('')
   const [cur, setCur] = useState<LeagueState | null>(null)
+  const [audit, setAudit] = useState<AuditReport | null>(null)
 
   useEffect(() => {
     get<P[]>('/api/market')
@@ -261,6 +262,45 @@ export function Commissioner() {
               Apply
             </button>
           </div>
+        </Card>
+
+        <Card title="Money audit" blurb="Replay every member's trade + dividend ledger and compare to their cash balance. All green means the books are exact; any drift points to a bug or hand-edit, with the amount.">
+          <button
+            className="btn"
+            onClick={() =>
+              run('audit', async () => {
+                const r = await get<AuditReport>('/api/admin/audit')
+                setAudit(r)
+                return { all_ok: r.all_ok, members: r.members.length }
+              })
+            }
+          >
+            Run audit
+          </button>
+          {audit && (
+            <table className="book-table" style={{ marginTop: 10 }}>
+              <thead>
+                <tr>
+                  <th className="l">Member</th>
+                  <th>Cash</th>
+                  <th>Ledger</th>
+                  <th>Drift</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.members.map((m) => (
+                  <tr key={m.username}>
+                    <td className="l">{m.username}</td>
+                    <td className="num">${money(m.cash)}</td>
+                    <td className="num dim">${money(m.computed_cash)}</td>
+                    <td className={`num ${m.ok ? 'up' : 'dn'}`}>
+                      {m.ok ? '✓' : `$${money(m.drift)}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </Card>
 
         <Card title="Build the market (projections)" blurb='Create listings from a projections snapshot: {"player_id": season_pts, ...}. One shot per player — existing listings are never re-priced. Set the start time separately, above.'>

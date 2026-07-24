@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import current_commissioner, get_session
 from app.db import utcnow
+from app.engine import ledger
 from app.engine.dividends import post_week_dividends
 from app.models import League, Listing, StatWeek, User
 from app.providers.sleeper import SleeperProvider
@@ -196,6 +197,37 @@ class RulesIn(BaseModel):
     dividend_multiplier: float | None = Field(default=None, gt=0, le=100)
     fee_rate: float | None = Field(default=None, ge=0, le=0.5)
     share_cap: int | None = Field(default=None, ge=1, le=1000)
+
+
+@router.get("/audit")
+def audit(user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Replay every member's immutable ledgers and compare to their stored cash.
+    `all_ok` False means a `cash` column has drifted from the trade+dividend history
+    — a bug or a hand-edit — with the exact per-member drift to chase down."""
+    league = session.get(League, user.league_id)
+    starting = league.rules.starting_cash
+    members = session.execute(
+        select(User).where(User.league_id == league.id)
+    ).scalars().all()
+    rows = []
+    for m in members:
+        rec = ledger.reconcile(session, m, starting)
+        rows.append(
+            {
+                "username": m.username,
+                "cash": float(rec.stored_cash),
+                "computed_cash": float(rec.computed_cash),
+                "drift": float(rec.drift),
+                "ok": rec.ok,
+            }
+        )
+    rows.sort(key=lambda r: (r["ok"], r["username"]))  # mismatches first
+    return {
+        "league": league.name,
+        "starting_cash": float(starting),
+        "all_ok": all(r["ok"] for r in rows),
+        "members": rows,
+    }
 
 
 @router.post("/rules")

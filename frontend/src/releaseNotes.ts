@@ -2,7 +2,7 @@
 // at the top. The masthead shows this version; if it differs from the server's
 // version (from /api/state), the app nudges a reload — so everyone can confirm
 // they're on the same build.
-export const APP_VERSION = '0.5.0'
+export const APP_VERSION = '0.6.0'
 
 export interface Release {
   version: string
@@ -11,6 +11,16 @@ export interface Release {
 }
 
 export const RELEASE_NOTES: Release[] = [
+  {
+    version: '0.6.0',
+    date: 'Jul 23, 2026',
+    notes: [
+      'New “Cash Ledger” tab — every dollar in and out, newest first: your opening balance, each buy and sell (with fee), and each dividend, with your running cash after each. No more wondering where your balance came from.',
+      'Your ledger reconciles: the app replays your trades and dividends and confirms they add up to your cash, to the cent — with a ✓ when they agree.',
+      'Reminder it makes obvious: cash only goes up when you sell or a dividend pays. In the offseason there are no dividends yet, so a bigger balance means you sold.',
+      'Commissioner: a “Money audit” card checks every member’s books against their cash in one click and flags any mismatch.',
+    ],
+  },
   {
     version: '0.5.0',
     date: 'Jul 9, 2026',
