@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { get, post, money, ApiError } from '../api'
-import type { AuditReport, LeagueState } from '../types'
+import type { AuditReport, LeagueState, Member } from '../types'
 
 interface P {
   player_id: string
@@ -34,6 +34,14 @@ export function Commissioner() {
   const [sleeperId, setSleeperId] = useState('')
   const [cur, setCur] = useState<LeagueState | null>(null)
   const [audit, setAudit] = useState<AuditReport | null>(null)
+  const [members, setMembers] = useState<Member[]>([])
+  const [pick, setPick] = useState<number | ''>('')
+
+  function loadMembers() {
+    return get<{ members: Member[] }>('/api/admin/members')
+      .then((r) => setMembers(r.members))
+      .catch(() => {})
+  }
 
   useEffect(() => {
     get<P[]>('/api/market')
@@ -46,7 +54,23 @@ export function Commissioner() {
         setFmt(s.scoring_format)
       })
       .catch(() => {})
+    loadMembers()
   }, [])
+
+  async function removeMember() {
+    const m = members.find((x) => x.user_id === pick)
+    if (!m) return
+    const warn =
+      m.shares > 0
+        ? `Remove ${m.username}? They hold ${m.shares} shares — their book is sold back to the market (this moves prices) and the account is permanently deleted. This can't be undone.`
+        : `Remove ${m.username}? Their account is permanently deleted. This can't be undone.`
+    if (!window.confirm(warn)) return
+    await run(`remove ${m.username}`, () =>
+      post('/api/admin/remove-member', { user_id: m.user_id, liquidate: m.shares > 0 }),
+    )
+    setPick('')
+    await loadMembers()
+  }
 
   async function run(label: string, fn: () => Promise<unknown>) {
     setOut(`${label}…`)
@@ -363,6 +387,42 @@ export function Commissioner() {
               Apply
             </button>
           </div>
+        </Card>
+
+        <Card
+          title="Members"
+          blurb="Everyone who's joined with the invite code. Remove a manager to take them out of the league — you and other commissioners can't be removed. If they hold shares, their book is sold back to the market (prices adjust) before the account is deleted. Permanent."
+        >
+          <div className="row">
+            <span className="dim" style={{ fontSize: 12 }}>
+              <b style={{ color: 'var(--gold-hi)' }}>{members.length}</b> joined
+            </span>
+          </div>
+          <div className="row">
+            <select
+              value={pick}
+              style={{ minWidth: 240 }}
+              aria-label="Member to remove"
+              onChange={(e) => setPick(e.target.value ? Number(e.target.value) : '')}
+            >
+              <option value="">choose member to remove…</option>
+              {members
+                .filter((m) => !m.is_you && !m.is_commissioner)
+                .map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.username} — {m.shares} shares · {m.trades} trades
+                  </option>
+                ))}
+            </select>
+            <button className="btn danger" disabled={!pick} onClick={removeMember}>
+              Remove
+            </button>
+          </div>
+          {members.filter((m) => !m.is_you && !m.is_commissioner).length === 0 && (
+            <p className="dim" style={{ fontSize: 11.5 }}>
+              No removable members yet — you and other commissioners aren’t listed here.
+            </p>
+          )}
         </Card>
 
         <Card title="Money audit" blurb="Replay every member's trade + dividend ledger and compare to their cash balance. All green means the books are exact; any drift points to a bug or hand-edit, with the amount.">

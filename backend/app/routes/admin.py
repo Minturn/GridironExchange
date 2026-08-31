@@ -4,14 +4,24 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.auth import current_commissioner, get_session
 from app.db import utcnow
 from app.engine import fantasy_scoring, ledger
 from app.engine.dividends import post_week_dividends
-from app.models import League, Listing, StatWeek, User
+from app.models import (
+    Dividend,
+    DividendAccrual,
+    Holding,
+    HoldingSnapshot,
+    League,
+    Listing,
+    StatWeek,
+    Trade,
+    User,
+)
 from app.providers.sleeper import SleeperProvider
 from app.services import sync as sync_service
 from app.services.listings import create_listings
@@ -306,3 +316,79 @@ def set_rules(body: RulesIn, user: User = Depends(current_commissioner), session
         "fee_rate": str(r.fee_rate),
         "share_cap": r.share_cap,
     }
+
+
+@router.get("/members")
+def list_members(user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Every manager in the league, with the context the Remove-member card needs: who
+    they are, whether they're you or a commissioner (both un-removable), and their live
+    market footprint (shares held, trades made) so removal warns before it moves prices."""
+    members = session.scalars(
+        select(User).where(User.league_id == user.league_id).order_by(User.username)
+    ).all()
+    rows = []
+    for m in members:
+        shares = session.scalar(
+            select(func.coalesce(func.sum(Holding.shares), 0)).where(Holding.user_id == m.id)
+        )
+        trades = session.scalar(select(func.count(Trade.id)).where(Trade.user_id == m.id))
+        rows.append({
+            "user_id": m.id,
+            "username": m.username,
+            "is_commissioner": bool(m.is_commissioner),
+            "is_you": m.id == user.id,
+            "cash": float(m.cash),
+            "shares": int(shares or 0),
+            "trades": int(trades or 0),
+        })
+    return {"members": rows}
+
+
+class RemoveMemberIn(BaseModel):
+    user_id: int
+    liquidate: bool = False
+
+
+@router.post("/remove-member")
+def remove_member(body: RemoveMemberIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Remove a manager and purge their account. Refuses to remove you or another
+    commissioner. A member holding shares needs `liquidate=true`: their book is returned
+    to the market (each player's supply drops, so the price curve eases back down), which
+    keeps sum(holdings) == shares_outstanding, then the account and all its ledger rows
+    are deleted. Deletes are manual because SQLite foreign keys don't cascade."""
+    target = session.get(User, body.user_id)
+    if target is None or target.league_id != user.league_id:
+        raise HTTPException(status_code=404, detail="no such member in your league")
+    if target.id == user.id:
+        raise HTTPException(status_code=400, detail="you can't remove yourself")
+    if target.is_commissioner:
+        raise HTTPException(status_code=400, detail="can't remove a commissioner — hand off the role first")
+
+    holdings = session.scalars(
+        select(Holding).where(Holding.user_id == target.id, Holding.shares != 0)
+    ).all()
+    shares_out = sum(h.shares for h in holdings)
+    if shares_out > 0 and not body.liquidate:
+        raise HTTPException(
+            status_code=409,
+            detail=(f"{target.username} holds {shares_out} shares across {len(holdings)} "
+                    "players — confirm to sell their book back to the market first"),
+        )
+
+    # Return their shares to each player's float. The price curve reads shares_outstanding,
+    # so supply coming back eases the price down — same effect as if they'd sold out.
+    for h in holdings:
+        listing = session.scalar(
+            select(Listing).where(
+                Listing.league_id == target.league_id, Listing.player_id == h.player_id
+            )
+        )
+        if listing is not None:
+            listing.shares_outstanding = max(0, listing.shares_outstanding - h.shares)
+
+    for model in (Holding, Trade, Dividend, DividendAccrual, HoldingSnapshot):
+        session.execute(delete(model).where(model.user_id == target.id))
+    username = target.username
+    session.delete(target)
+    session.commit()
+    return {"removed": username, "liquidated": shares_out > 0, "shares_returned": shares_out}

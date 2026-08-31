@@ -145,6 +145,16 @@ export interface AuditReport {
   members: AuditRow[]
 }
 
+export interface Member {
+  user_id: number
+  username: string
+  is_commissioner: boolean
+  is_you: boolean
+  cash: number
+  shares: number
+  trades: number
+}
+
 export interface LeagueState {
   season: number
   league_name: string
