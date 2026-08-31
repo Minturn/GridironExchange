@@ -53,6 +53,24 @@ class SleeperProvider:
             if isinstance(stats, dict) and stats.get("pts_ppr") is not None
         }
 
+    def fetch_week_raw(self, season: int, week: int) -> dict[str, dict]:
+        """player_id -> raw stat line. Same endpoint as fetch_week_stats; we keep the
+        raw fields (pass_yd, rush_td, rec, ...) and score them ourselves. Sleeper's
+        cumulative /stats updates in-progress during games, which is what makes it
+        usable for live accrual — verify at Week 1 (scripts/probe_live_stats.py)."""
+        raw = self._get(f"{BASE}/stats/nfl/regular/{season}/{week}")
+        return {
+            str(pid): stats
+            for pid, stats in raw.items()
+            if isinstance(stats, dict)
+        }
+
+    def fetch_league_scoring(self, league_id: str) -> dict:
+        """A Sleeper league's scoring_settings ({stat_key: points}) — used to mirror an
+        existing league's exact scoring in one step. Keys match our raw stat keys."""
+        lg = self._get(f"{BASE}/league/{league_id}")
+        return lg.get("scoring_settings") or {}
+
     def fetch_state(self) -> dict:
         """{'week': int, 'season_type': 'regular'|'pre'|'post', 'season': str, ...}"""
         return self._get(f"{BASE}/state/nfl")

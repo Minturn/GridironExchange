@@ -33,13 +33,17 @@ def sync_week_stats(
     *,
     final: bool,
 ) -> int:
-    """Upsert one week's fantasy points. Call with final=True Tuesday AM before the
-    dividend run — dividends only read is_final rows. Only players already in the
-    players table are recorded (stats feed covers the whole NFL)."""
-    stats = provider.fetch_week_stats(season, week)
+    """Upsert one week's stats. Stores the RAW stat line (so each league scores it in
+    its own format at dividend time) plus canonical full-PPR `pts` for display and the
+    source tripwire. We compute points ourselves — not read the feed's pts_ppr — so a
+    feed-shape change is caught by validate_scoring.py rather than paying wrong.
+    Call with final=True Tuesday AM before the dividend run."""
+    from app.engine.fantasy_scoring import PRESETS, score
+
+    raw_lines = provider.fetch_week_raw(season, week)
     known = set(session.execute(select(Player.id)).scalars())
     count = 0
-    for pid, pts in stats.items():
+    for pid, raw in raw_lines.items():
         if pid not in known:
             continue
         row = (
@@ -50,7 +54,8 @@ def sync_week_stats(
         if row is None:
             row = StatWeek(season=season, week=week, player_id=pid, pts=Decimal("0"))
             session.add(row)
-        row.pts = pts
+        row.raw = raw
+        row.pts = score(raw, PRESETS["ppr"])
         row.is_final = final
         count += 1
     session.commit()

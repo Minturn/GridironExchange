@@ -153,10 +153,39 @@ export interface LeagueState {
   market_open: boolean
   market_opens_at: string | null
   scoring_mode: 'market' | 'relative' | 'lineup'
+  scoring_format: 'ppr' | 'half_ppr' | 'std' | 'custom'
+  dividend_mode: 'snapshot' | 'accrual'
   dividend_multiplier: number
   in_game_trading: 'locked' | 'live'
   lineup_slots: Record<string, number>
   version: string
+}
+
+export interface LiveHolding {
+  player_id: string
+  name: string
+  pos: string
+  team: string | null
+  shares: number
+  live_points: number
+  accrued: number
+}
+
+export interface LiveBoardRow {
+  username: string
+  paycheck: number
+  is_you: boolean
+  rank: number
+}
+
+export interface LiveScore {
+  week: number
+  dividend_mode: 'snapshot' | 'accrual'
+  live: boolean
+  your_paycheck: number
+  your_rank: number | null
+  holdings: LiveHolding[]
+  board: LiveBoardRow[]
 }
 
 export interface LineupData {

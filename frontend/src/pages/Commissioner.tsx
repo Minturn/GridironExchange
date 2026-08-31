@@ -30,6 +30,8 @@ export function Commissioner() {
   const [players, setPlayers] = useState<P[]>([])
   const [fixSearch, setFixSearch] = useState('')
   const [divRate, setDivRate] = useState('')
+  const [fmt, setFmt] = useState('')
+  const [sleeperId, setSleeperId] = useState('')
   const [cur, setCur] = useState<LeagueState | null>(null)
   const [audit, setAudit] = useState<AuditReport | null>(null)
 
@@ -41,6 +43,7 @@ export function Commissioner() {
       .then((s) => {
         setCur(s)
         setMode(s.scoring_mode)
+        setFmt(s.scoring_format)
       })
       .catch(() => {})
   }, [])
@@ -160,6 +163,104 @@ export function Commissioner() {
             <p className="err" style={{ fontSize: 11.5 }}>
               Live: rewards whoever’s watching the game and fastest to react. Great drama, but not
               everyone can be online — worth watching how it feels.
+            </p>
+          )}
+        </Card>
+
+        <Card
+          title="Scoring format"
+          blurb="How raw stats become fantasy points — full PPR (1/reception), half PPR, or standard. We compute points ourselves from the raw box score (not the feed's number), so it's per-league. Takes effect on the next dividend run; never re-prices the market."
+        >
+          <div className="row">
+            <span className="dim" style={{ fontSize: 12 }}>
+              Current: <b style={{ color: 'var(--gold-hi)' }}>{cur ? cur.scoring_format : '…'}</b>
+            </span>
+          </div>
+          <div className="row">
+            <select value={fmt} onChange={(e) => setFmt(e.target.value)} aria-label="Scoring format">
+              <option value="ppr">Full PPR</option>
+              <option value="half_ppr">Half PPR</option>
+              <option value="std">Standard (non-PPR)</option>
+            </select>
+            <button
+              className="btn solid"
+              disabled={!fmt || fmt === cur?.scoring_format}
+              onClick={() =>
+                run('scoring format', () => post('/api/admin/scoring-format', { fmt })).then(() =>
+                  setCur((c) => (c ? { ...c, scoring_format: fmt as LeagueState['scoring_format'] } : c)),
+                )
+              }
+            >
+              Set format
+            </button>
+          </div>
+        </Card>
+
+        <Card
+          title="Import scoring (Sleeper)"
+          blurb="Mirror an existing Sleeper league's exact scoring — paste its league ID and we import its rules (bonuses included) in one step. Sets the format to Custom; takes effect on the next dividend run."
+        >
+          <div className="row">
+            <input
+              placeholder="Sleeper league ID"
+              value={sleeperId}
+              style={{ width: 200 }}
+              onChange={(e) => setSleeperId(e.target.value)}
+            />
+            <button
+              className="btn solid"
+              disabled={!sleeperId}
+              onClick={() =>
+                run('import scoring', () =>
+                  post('/api/admin/import-scoring', { sleeper_league_id: sleeperId.trim() }),
+                ).then(() => setCur((c) => (c ? { ...c, scoring_format: 'custom' } : c)))
+              }
+            >
+              Import
+            </button>
+          </div>
+        </Card>
+
+        <Card
+          title="Dividend mode"
+          blurb="Snapshot: the whole week's dividend goes to whoever owned a player at kickoff (simple, safe). Accrual: the dividend follows ownership through the game — buy the hot hand and earn his rest-of-game, with a live Game Day board. Under accrual the own-at-kickoff rule no longer applies."
+        >
+          <div className="row">
+            <span className="dim" style={{ fontSize: 12 }}>
+              Current:{' '}
+              <b style={{ color: cur?.dividend_mode === 'accrual' ? 'var(--scarlet-hi)' : 'var(--gold-hi)' }}>
+                {cur ? cur.dividend_mode : '…'}
+              </b>
+            </span>
+          </div>
+          <div className="row">
+            <button
+              className="btn"
+              disabled={cur?.dividend_mode === 'snapshot'}
+              onClick={() =>
+                run('dividend mode', () => post('/api/admin/dividend-mode', { mode: 'snapshot' })).then(() =>
+                  setCur((c) => (c ? { ...c, dividend_mode: 'snapshot' } : c)),
+                )
+              }
+            >
+              Own at kickoff
+            </button>
+            <button
+              className="btn danger"
+              disabled={cur?.dividend_mode === 'accrual'}
+              onClick={() =>
+                run('dividend mode', () => post('/api/admin/dividend-mode', { mode: 'accrual' })).then(() =>
+                  setCur((c) => (c ? { ...c, dividend_mode: 'accrual' } : c)),
+                )
+              }
+            >
+              Live accrual
+            </button>
+          </div>
+          {cur?.dividend_mode === 'accrual' && (
+            <p className="err" style={{ fontSize: 11.5 }}>
+              Accrual: dividends follow ownership through games and settle Tuesday (provisional until
+              then). The kickoff-ownership rule no longer applies. Best paired with live in-game trading.
             </p>
           )}
         </Card>

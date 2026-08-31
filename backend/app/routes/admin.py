@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import current_commissioner, get_session
 from app.db import utcnow
-from app.engine import ledger
+from app.engine import fantasy_scoring, ledger
 from app.engine.dividends import post_week_dividends
 from app.models import League, Listing, StatWeek, User
 from app.providers.sleeper import SleeperProvider
@@ -228,6 +228,62 @@ def audit(user: User = Depends(current_commissioner), session: Session = Depends
         "all_ok": all(r["ok"] for r in rows),
         "members": rows,
     }
+
+
+class ScoringFormatIn(BaseModel):
+    fmt: str = Field(pattern="^(ppr|half_ppr|std)$")
+
+
+@router.post("/scoring-format")
+def set_scoring_format(body: ScoringFormatIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Fantasy scoring format — how raw stats become points (full PPR / half / standard).
+    Applies to the NEXT dividend run; never re-prices the market."""
+    league = session.get(League, user.league_id)
+    settings = dict(league.settings_json or {})
+    settings["scoring_format"] = body.fmt
+    league.settings_json = settings
+    session.commit()
+    return {"scoring_format": league.rules.scoring_format}
+
+
+class ImportScoringIn(BaseModel):
+    sleeper_league_id: str = Field(min_length=3, max_length=40)
+
+
+@router.post("/import-scoring")
+def import_scoring(body: ImportScoringIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Mirror a real Sleeper league's exact scoring: pull its scoring_settings, store it
+    as this league's custom rubric, and flip scoring_format to 'custom'. Onboarding in one
+    step. Applies to the next dividend run; never re-prices the market."""
+    settings_raw = SleeperProvider().fetch_league_scoring(body.sleeper_league_id)
+    if not settings_raw:
+        raise HTTPException(status_code=400, detail="no scoring settings found for that Sleeper league id")
+    rubric = fantasy_scoring.sleeper_to_rubric(settings_raw)
+    if not rubric:
+        raise HTTPException(status_code=400, detail="that league's scoring didn't map to any rules")
+    league = session.get(League, user.league_id)
+    settings = dict(league.settings_json or {})
+    settings["scoring_rubric"] = {k: str(v) for k, v in rubric.items()}  # strings → JSON/Decimal-safe
+    settings["scoring_format"] = "custom"
+    league.settings_json = settings
+    session.commit()
+    return {"scoring_format": "custom", "rules_imported": len(rubric)}
+
+
+class DividendModeIn(BaseModel):
+    mode: str = Field(pattern="^(snapshot|accrual)$")
+
+
+@router.post("/dividend-mode")
+def set_dividend_mode(body: DividendModeIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """snapshot = own-at-kickoff (whole week to the kickoff holder). accrual = live
+    ownership-over-time (SPEC §14): the dividend follows who held the player as he scored."""
+    league = session.get(League, user.league_id)
+    settings = dict(league.settings_json or {})
+    settings["dividend_mode"] = body.mode
+    league.settings_json = settings
+    session.commit()
+    return {"dividend_mode": league.rules.dividend_mode}
 
 
 @router.post("/rules")

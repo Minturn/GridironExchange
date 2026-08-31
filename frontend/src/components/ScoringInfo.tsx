@@ -32,13 +32,24 @@ const MODES: ModeInfo[] = [
   },
 ]
 
+const FORMAT_LABEL: Record<string, string> = {
+  ppr: 'Full PPR (1 pt / reception)',
+  half_ppr: 'Half PPR (0.5 / reception)',
+  std: 'Standard (non-PPR)',
+  custom: 'Custom (imported from your league)',
+}
+
 export function ScoringInfo({
   mode,
   rate,
+  format,
+  dividendMode,
   onClose,
 }: {
   mode: 'market' | 'relative' | 'lineup'
   rate: number
+  format: 'ppr' | 'half_ppr' | 'std' | 'custom'
+  dividendMode: 'snapshot' | 'accrual'
   onClose: () => void
 }) {
   return (
@@ -51,6 +62,25 @@ export function ScoringInfo({
           </button>
         </div>
         <div className="modal-body">
+          <div
+            style={{
+              display: 'flex', flexWrap: 'wrap', gap: '6px 16px', margin: '2px 0 12px',
+              fontSize: 12.5,
+            }}
+          >
+            <span className="dim">
+              Points:{' '}
+              <b style={{ color: 'var(--gold-hi)' }}>{FORMAT_LABEL[format] ?? format}</b>
+            </span>
+            <span className="dim">
+              Payout:{' '}
+              <b style={{ color: 'var(--ink)' }}>
+                {dividendMode === 'accrual'
+                  ? 'Live accrual — you earn a player’s points while you hold him'
+                  : 'Own at kickoff — the whole week goes to who held him at kickoff'}
+              </b>
+            </span>
+          </div>
           <p className="dim" style={{ fontSize: 12.5, margin: '2px 0 10px' }}>
             Every Tuesday, each share you hold pays a dividend based on last week’s fantasy points.
             The <b style={{ color: 'var(--ink)' }}>scoring mode</b> decides how points become dividends — it

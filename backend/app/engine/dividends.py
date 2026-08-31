@@ -18,7 +18,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.engine import scoring
+from app.engine import fantasy_scoring, scoring
 from app.engine.amm import money
 from app.models import Dividend, Holding, HoldingSnapshot, League, Listing, Player, StatWeek, User
 
@@ -92,16 +92,18 @@ def post_week_dividends(session: Session, league_id: int, week: int) -> Dividend
     rules = league.rules
     mode = rules.scoring_mode
 
-    stats = {
-        row.player_id: row.pts
-        for row in session.execute(
-            select(StatWeek).where(
-                StatWeek.season == league.season_year,
-                StatWeek.week == week,
-                StatWeek.is_final.is_(True),
-            )
-        ).scalars()
-    }
+    # Score each player in THIS league's format from the raw stat line; fall back to
+    # the stored canonical pts for rows with no raw (manual stat-fixes, pre-0005 data).
+    rubric = fantasy_scoring.resolve_rubric(rules.scoring_format, rules.scoring_rubric)
+    stats = {}
+    for row in session.execute(
+        select(StatWeek).where(
+            StatWeek.season == league.season_year,
+            StatWeek.week == week,
+            StatWeek.is_final.is_(True),
+        )
+    ).scalars():
+        stats[row.player_id] = fantasy_scoring.score(row.raw, rubric) if row.raw else row.pts
     already = {
         (d.player_id, d.user_id)
         for d in session.execute(

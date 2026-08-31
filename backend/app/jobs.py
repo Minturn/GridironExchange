@@ -100,17 +100,40 @@ def job_tuesday_settlement():
     week = int(state.get("week", 0)) - 1  # state has advanced to the upcoming week
     if not 1 <= week <= 18:
         return
+    from app.engine import accrual
+
     with SessionLocal() as session:
         leagues = session.execute(select(League)).scalars().all()
         for league in leagues:
             n = sync_service.sync_week_stats(
                 session, provider, league.season_year, week, final=True
             )
-            run = post_week_dividends(session, league.id, week)
-            log.info(
-                "tuesday wk%d league=%s: %d stats, %d dividends, $%s",
-                week, league.name, n, run.rows_posted, run.total_paid,
-            )
+            if league.rules.dividend_mode == "accrual":
+                # final true-up: accrue any points scored after the last live poll to
+                # current holders (from the persisted cursor), then settle the week.
+                final_raw = {
+                    r.player_id: r.raw
+                    for r in session.execute(
+                        select(StatWeek).where(
+                            StatWeek.season == league.season_year,
+                            StatWeek.week == week,
+                            StatWeek.is_final.is_(True),
+                        )
+                    ).scalars()
+                    if r.raw
+                }
+                accrual.accrue_live(session, league.id, week, final_raw)
+                run = accrual.settle_week(session, league.id, week)
+                log.info(
+                    "tuesday wk%d league=%s ACCRUAL: %d stats, %d dividends, $%s",
+                    week, league.name, n, run.rows_posted, run.total_paid,
+                )
+            else:
+                run = post_week_dividends(session, league.id, week)
+                log.info(
+                    "tuesday wk%d league=%s: %d stats, %d dividends, $%s",
+                    week, league.name, n, run.rows_posted, run.total_paid,
+                )
 
 
 def job_price_snapshot():
@@ -159,12 +182,62 @@ def job_backup_db():
     log.info("db backup → %s", dest)
 
 
+def job_live_accrual():
+    """During game windows, poll live cumulative stats and accrue them to accrual-mode
+    leagues (SPEC §14). Restart-safe via the persisted cursor. No-op outside games,
+    outside the regular season, or when no league runs accrual mode — so it's cheap to
+    fire often (the ESPN game-state check is the gate)."""
+    from app.engine import accrual
+
+    now = utcnow()
+    live_teams = {
+        t
+        for g in EspnSchedule().current_week_games()
+        if g["state"] == "in"
+        for t in g["teams"]
+    }
+    if not live_teams:
+        return
+    provider = SleeperProvider()
+    state = provider.fetch_state()
+    if state.get("season_type") != "regular":
+        return
+    week = int(state.get("week", 0))
+    if not 1 <= week <= 18:
+        return
+    with SessionLocal() as session:
+        leagues = [
+            lg
+            for lg in session.execute(select(League)).scalars()
+            if lg.rules.dividend_mode == "accrual"
+        ]
+        if not leagues:
+            return
+        live_players = {
+            p.id
+            for p in session.execute(select(Player).where(Player.team.in_(live_teams))).scalars()
+        }
+        raw_by_season: dict[int, dict] = {}
+        total = 0
+        for lg in leagues:
+            raw_by_season.setdefault(
+                lg.season_year, provider.fetch_week_raw(lg.season_year, week)
+            )
+            total += accrual.accrue_live(
+                session, lg.id, week, raw_by_season[lg.season_year],
+                only_players=live_players, now=now,
+            )
+        if total:
+            log.info("live accrual wk%d: %d rows across %d league(s)", week, total, len(leagues))
+
+
 def start_scheduler() -> BackgroundScheduler:
     sched = BackgroundScheduler(timezone="UTC")
     sched.add_job(job_sync_players, "cron", hour=9, minute=0)
     sched.add_job(job_backup_db, "cron", hour=8, minute=30)  # nightly DB backup
     sched.add_job(job_price_snapshot, "cron", hour=6, minute=0)
     sched.add_job(job_game_locks, "interval", minutes=15)
+    sched.add_job(job_live_accrual, "interval", minutes=1)  # live in-game dividend accrual
     sched.add_job(job_tuesday_settlement, "cron", day_of_week="tue", hour=13, minute=10)
     sched.start()
     log.info("scheduler started")

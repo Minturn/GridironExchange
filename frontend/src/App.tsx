@@ -15,6 +15,7 @@ import { CashHistory } from './pages/CashHistory'
 import { Leaderboard } from './pages/Leaderboard'
 import { ManagerPage } from './pages/ManagerPage'
 import { Lineup } from './pages/Lineup'
+import { Live } from './pages/Live'
 import { Tape } from './pages/Tape'
 import { Commissioner } from './pages/Commissioner'
 
@@ -118,6 +119,11 @@ export default function App() {
               Lineup
             </NavLink>
           )}
+          {state?.dividend_mode === 'accrual' && (
+            <NavLink to="/live" className={({ isActive }) => (isActive ? 'active' : '')}>
+              Game Day
+            </NavLink>
+          )}
           <NavLink to="/standings" className={({ isActive }) => (isActive ? 'active' : '')}>
             Standings
           </NavLink>
@@ -141,6 +147,7 @@ export default function App() {
         <Route path="/standings" element={<Leaderboard />} />
         <Route path="/manager/:username" element={<ManagerPage />} />
         <Route path="/lineup" element={<Lineup />} />
+        <Route path="/live" element={<Live />} />
         <Route path="/tape" element={<Tape />} />
         {me.is_commissioner && <Route path="/commish" element={<Commissioner />} />}
       </Routes>
@@ -152,6 +159,8 @@ export default function App() {
         <ScoringInfo
           mode={state.scoring_mode}
           rate={state.dividend_multiplier}
+          format={state.scoring_format}
+          dividendMode={state.dividend_mode}
           onClose={() => setScoringInfo(false)}
         />
       )}

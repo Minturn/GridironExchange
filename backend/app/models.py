@@ -46,6 +46,16 @@ DEFAULT_RULES = {
     # no trading on live info) or "live" (the product feature — stays tradeable during
     # the game; dividends still settle by the kickoff snapshot). See app/jobs.py.
     "in_game_trading": "locked",
+    # scoring_format: how RAW stats become fantasy points (app/engine/fantasy_scoring.py).
+    # "ppr" | "half_ppr" | "std". The pilot pays on full PPR.
+    "scoring_format": "ppr",
+    # dividend_mode: "snapshot" = own-at-kickoff, whole week to the kickoff holder
+    # (default, safe). "accrual" = ownership-over-time (SPEC §14): the weekly dividend
+    # follows who held the player while he was scoring. See app/engine/accrual.py.
+    "dividend_mode": "snapshot",
+    # scoring_rubric: a custom {stat: points} map imported from a real league (Sleeper).
+    # When present it OVERRIDES scoring_format (which reads "custom"). None = use the preset.
+    "scoring_rubric": None,
 }
 
 
@@ -61,6 +71,9 @@ class LeagueRules:
     scoring_mode: str
     lineup_slots: dict
     in_game_trading: str
+    scoring_format: str
+    dividend_mode: str
+    scoring_rubric: dict | None
 
 
 class League(Base):
@@ -88,6 +101,9 @@ class League(Base):
             scoring_mode=str(raw.get("scoring_mode") or "market"),
             lineup_slots=dict(raw.get("lineup_slots") or DEFAULT_RULES["lineup_slots"]),
             in_game_trading=str(raw.get("in_game_trading") or "locked"),
+            scoring_format=str(raw.get("scoring_format") or "ppr"),
+            dividend_mode=str(raw.get("dividend_mode") or "snapshot"),
+            scoring_rubric=raw.get("scoring_rubric") or None,
         )
 
 
@@ -181,6 +197,48 @@ class Dividend(Base):
     ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class DividendAccrual(Base):
+    """One slice of live, provisional dividend (SPEC §14 — ownership-over-time).
+
+    Each row = the points a player put up in ONE poll window (`points_delta`) credited
+    to a user who held him THEN, at `shares_held`, worth `amount` (= shares × delta ×
+    rate; may be negative on an INT/fumble). Append-only. The Tuesday settlement sums a
+    user's rows, floors each (player,user) total at $0, crystallizes them into the
+    canonical `dividends` ledger, and flips `settled` so it can't double-pay.
+
+    Forward-only by construction: a delta is credited to whoever holds at that tick, so
+    buying in after a play never earns points already accrued to the previous holder.
+    """
+
+    __tablename__ = "dividend_accruals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
+    week: Mapped[int] = mapped_column(Integer)
+    player_id: Mapped[str] = mapped_column(ForeignKey("players.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    shares_held: Mapped[int] = mapped_column(Integer)
+    points_delta: Mapped[Decimal] = mapped_column(POINTS)
+    amount: Mapped[Decimal] = mapped_column(MONEY)
+    settled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class AccrualCursor(Base):
+    """The last cumulative points a league has already accrued for a player this week
+    — the diff baseline for the live poll. Persisted (not in-memory) so a mid-game
+    restart can't re-diff from zero and re-accrue a player's whole game."""
+
+    __tablename__ = "accrual_cursors"
+    __table_args__ = (UniqueConstraint("league_id", "week", "player_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
+    week: Mapped[int] = mapped_column(Integer)
+    player_id: Mapped[str] = mapped_column(ForeignKey("players.id"))
+    cume: Mapped[Decimal] = mapped_column(POINTS, default=Decimal("0"))
+
+
 class HoldingSnapshot(Base):
     """Dividend record-date: who held a player at his game's kickoff, for one week.
 
@@ -223,5 +281,9 @@ class StatWeek(Base):
     season: Mapped[int] = mapped_column(Integer)
     week: Mapped[int] = mapped_column(Integer)
     player_id: Mapped[str] = mapped_column(ForeignKey("players.id"))
+    # pts = canonical full-PPR points (for display / current_week / the source tripwire).
+    # Per-league scoring recomputes from `raw` at dividend time, so different leagues can
+    # run different formats off the same global stat line (app/engine/fantasy_scoring.py).
     pts: Mapped[Decimal] = mapped_column(POINTS)
+    raw: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # raw stat line from the feed
     is_final: Mapped[bool] = mapped_column(Boolean, default=False)

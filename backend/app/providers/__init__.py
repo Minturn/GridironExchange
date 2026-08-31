@@ -18,3 +18,10 @@ class StatsProvider(Protocol):
     def fetch_week_stats(self, season: int, week: int) -> dict[str, Decimal]:
         """player_id -> PPR fantasy points for the week."""
         ...
+
+    def fetch_week_raw(self, season: int, week: int) -> dict[str, dict]:
+        """player_id -> raw stat line (pass_yd, rush_td, rec, ...). The stable,
+        universal layer we score ourselves via app/engine/fantasy_scoring.py, so
+        scoring is per-league and not hostage to the feed's precomputed points.
+        Works for a final box score or an in-progress one (drives live accrual)."""
+        ...

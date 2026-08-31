@@ -10,9 +10,21 @@ from sqlalchemy.orm import Session
 from app.auth import current_user, get_session
 from app.config import APP_VERSION
 from app.db import utcnow
-from app.engine import amm, ledger, scoring
+from app.engine import accrual, amm, ledger, scoring
 from app.engine.trading import TradeError, execute_trade
-from app.models import Dividend, Holding, League, Listing, Player, PriceHistory, StatWeek, Trade, User
+from app.models import (
+    AccrualCursor,
+    Dividend,
+    DividendAccrual,
+    Holding,
+    League,
+    Listing,
+    Player,
+    PriceHistory,
+    StatWeek,
+    Trade,
+    User,
+)
 
 router = APIRouter(prefix="/api", tags=["market"])
 
@@ -529,6 +541,74 @@ def set_lineup(body: LineupIn, user: User = Depends(current_user), session: Sess
     return {"saved": user.lineup_json}
 
 
+@router.get("/live")
+def live(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    """Live scoreboard for an accrual-mode league: your holdings scoring in real time
+    (their live points from the poll cursor), the provisional dividend accrued to you
+    so far this week, and where that paycheck ranks you against the league."""
+    league = session.get(League, user.league_id)
+    last_final = session.execute(
+        select(func.max(StatWeek.week)).where(
+            StatWeek.season == league.season_year, StatWeek.is_final.is_(True)
+        )
+    ).scalar() or 0
+    week = min(last_final + 1, 18)
+
+    prov = accrual.provisional_by_user(session, league.id, week)  # {uid: floored $}
+    cume = {
+        c.player_id: c.cume
+        for c in session.execute(
+            select(AccrualCursor).where(
+                AccrualCursor.league_id == league.id, AccrualCursor.week == week
+            )
+        ).scalars()
+    }
+    your_accrued: dict[str, Decimal] = defaultdict(lambda: Decimal("0.00"))
+    for a in session.execute(
+        select(DividendAccrual).where(
+            DividendAccrual.league_id == league.id,
+            DividendAccrual.week == week,
+            DividendAccrual.user_id == user.id,
+            DividendAccrual.settled.is_(False),
+        )
+    ).scalars():
+        your_accrued[a.player_id] += a.amount
+
+    holdings = [
+        {
+            "player_id": pl.id, "name": pl.name, "pos": pl.pos, "team": pl.team,
+            "shares": h.shares,
+            "live_points": float(cume.get(pl.id, Decimal("0"))),
+            "accrued": float(max(amm.money(your_accrued.get(pl.id, Decimal("0"))), Decimal("0.00"))),
+        }
+        for (h, _l, pl) in _held_with_pos(session, user)
+    ]
+    holdings.sort(key=lambda r: -r["accrued"])
+
+    names = {
+        u.id: u.username
+        for u in session.execute(select(User).where(User.league_id == league.id)).scalars()
+    }
+    board = sorted(
+        (
+            {"username": names[uid], "paycheck": float(prov.get(uid, Decimal("0.00"))), "is_you": uid == user.id}
+            for uid in names
+        ),
+        key=lambda r: -r["paycheck"],
+    )
+    for i, r in enumerate(board):
+        r["rank"] = i + 1
+    return {
+        "week": week,
+        "dividend_mode": league.rules.dividend_mode,
+        "live": any(v > 0 for v in prov.values()),
+        "your_paycheck": float(prov.get(user.id, Decimal("0.00"))),
+        "your_rank": next((r["rank"] for r in board if r["is_you"]), None),
+        "holdings": holdings,
+        "board": board,
+    }
+
+
 @router.get("/state")
 def state(user: User = Depends(current_user), session: Session = Depends(get_session)):
     league = session.get(League, user.league_id)
@@ -553,6 +633,8 @@ def state(user: User = Depends(current_user), session: Session = Depends(get_ses
         "market_open": market_open,
         "market_opens_at": opens_at_out,
         "scoring_mode": rules.scoring_mode,
+        "scoring_format": rules.scoring_format,
+        "dividend_mode": rules.dividend_mode,
         "dividend_multiplier": float(rules.dividend_multiplier),
         "in_game_trading": rules.in_game_trading,
         "lineup_slots": rules.lineup_slots,

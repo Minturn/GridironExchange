@@ -292,3 +292,78 @@ liquidity) · league-history museum.
 - Trade deadline in the pilot? (Lean yes, Week 12.)
 - Podium settle vs. mark-to-curve at Week 18. (Lean force-liquidation — cleaner story.)
 - League scoring flavor for dividends (PPR assumed — confirm with the league).
+
+---
+
+## 14. Live dividend accrual (product — "earn points as they're scored")
+
+> Builds directly on the **v0.5.0** groundwork: live in-game trading
+> (`in_game_trading = live`) and the kickoff **record-date snapshot** (`holding_snapshots`,
+> paid off by `post_week_dividends`). Accrual only matters when live trading is on. Deferred
+> from the pilot; captured here so the build is shovel-ready.
+
+### 14.1 The mechanic
+Today a player's whole weekly dividend goes to his **kickoff holder** (the snapshot). Accrual
+slices it across everyone who held him **while he was scoring** — buy the hot hand at halftime,
+earn his second half. Ownership-over-time is already derivable from the immutable `trades`
+ledger (§6.1); the missing input is a **scoring timeline** (points with timestamps), not a
+final box score.
+
+### 14.2 Feed — the real fork (and the one thing to verify)
+
+| | Accrual-lite (Sleeper poll) | True play-by-play (paid) |
+|---|---|---|
+| Source | `GET /v1/stats/nfl/regular/{s}/{w}` — the endpoint we already poll | SportsDataIO / Sportradar real-time PBP |
+| Shape | cumulative `pts_ppr` per player, **no timestamps** → diff successive polls | per-play fantasy points, timestamped |
+| Cost | **$0** | paid tier (real-time is the pricey one — get a quote) |
+| Granularity | poll interval (~45s) | exact play |
+
+**⚠ Verification gate — do this in a Week-1 game (can't be tested in the offseason; state was
+`season_type:"off"`, week 0 when this was written).** Confirm `/stats` updates *in-progress*
+— i.e. a player's cumulative `pts_ppr` rises through his game, not only after it ends. Sleeper's
+own app shows live scoring and third-party live boards poll this endpoint, so it's very likely,
+but **unconfirmed until a real game**. If it turns out to be post-game only, fall back to
+**ESPN** (already wired for the schedule; `site.api.espn.com` serves live scores + scoring
+plays) and compute fantasy points from the box score yourself. Either way keep it behind the
+`providers/` interface (§5) so the paid swap is one file. A `scripts/probe_live_stats.py` that
+polls + diffs the endpoint during a game is the cheapest way to close this gate.
+
+### 14.3 Algorithm (poll-and-diff)
+```
+during game windows (any ESPN game state == "in"), every ~45s:
+  live = provider.live_week_stats()                 # {player: cumulative pts}
+  for player, cume in live:
+     delta = cume - last_cume.get(player, 0)
+     if delta == 0: continue
+     for h in current holdings of player (shares > 0):
+        accrue(week, player, h.user, ts=now, amount = h.shares * delta * multiplier)  # → pending
+     last_cume[player] = cume
+```
+- New table `dividend_accruals(league, week, player, user, ts, points_delta, amount)`.
+- Idempotent via `last_cume` per player (a retried poll re-diffs to zero).
+- **Tuesday becomes reconciliation, not payout:** sum accruals, true them up against the final
+  box score (feeds revise — an overturned TD), **floor each holder's week total at $0**, settle
+  to cash. The kickoff snapshot stays as the fallback for locked-mode / un-polled players.
+
+### 14.4 Decisions to lock before building
+- **Accrued $ → cash:** hold as **pending**, settle Tuesday (avoids an intra-game reinvest snowball).
+- **Negatives (INT/fumble):** accrue them, but **floor the week total ≥ $0** at settlement.
+- **Granularity:** ~45s poll (catches scores fast, light load).
+- **Clawbacks:** show the live number as **"provisional until Tuesday"** so a revision true-up
+  doesn't read as theft.
+
+### 14.5 Risks (this is the app's most complex money-path)
+- Clawbacks feel bad → the "provisional" framing is not optional.
+- Feed lag/drop makes the *live* number wrong (corrected Tuesday) — the main reason to pay for a
+  feed at product scale.
+- Accrual + reconciliation needs the heaviest test suite in the app (it touches balances continuously).
+- New high-frequency poll job during game windows (the NAS handles it, but it's real load).
+- Only meaningful with `in_game_trading = live`.
+
+### 14.6 Build order
+1. ✅ **v0.5.0** — live-trading toggle + kickoff record-date.
+2. **Accrual-lite** — `dividend_accruals` table + a during-games poll job + Tuesday reconcile,
+   into a pending-dividend bucket. Proves the thesis at **$0**. *Gated on the §14.2 verification.*
+3. **Live UX** — the ticking "provisional dividend" on Your Book + a feed line
+   ("$KITTLE scored — +$18 to holders"). Where it starts to *feel* like the product.
+4. **Paid PBP** — swap the provider for exact per-play attribution when funded.
