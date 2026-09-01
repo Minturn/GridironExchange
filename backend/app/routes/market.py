@@ -638,5 +638,6 @@ def state(user: User = Depends(current_user), session: Session = Depends(get_ses
         "dividend_multiplier": float(rules.dividend_multiplier),
         "in_game_trading": rules.in_game_trading,
         "lineup_slots": rules.lineup_slots,
+        "registration_open": not (league.settings_json or {}).get("registration_closed"),
         "version": APP_VERSION,
     }

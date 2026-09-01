@@ -10,7 +10,7 @@ progress), so the boundary is never more than one poll behind.
 """
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select
@@ -40,6 +40,34 @@ def job_sync_players():
     with SessionLocal() as session:
         n = sync_service.sync_players(session, SleeperProvider())
         log.info("player sync: %d", n)
+
+
+def job_prelaunch_sync():
+    """Refresh the player universe in the hour before a league's market opens, so rosters,
+    teams, byes and injury status are current at the opening bell — not up to a day stale
+    from the nightly sync. Fires once per league per bell (stamped in settings)."""
+    now = utcnow()
+    with SessionLocal() as session:
+        due = False
+        for lg in session.scalars(select(League)).all():
+            sj = lg.settings_json or {}
+            raw = sj.get("market_opens_at")
+            if not raw or sj.get("prelaunch_synced_for") == raw:
+                continue
+            try:
+                opens_at = datetime.fromisoformat(raw)
+            except ValueError:
+                continue
+            if opens_at.tzinfo is not None:
+                opens_at = opens_at.astimezone(timezone.utc).replace(tzinfo=None)
+            if not (timedelta(0) <= (opens_at - now) <= timedelta(minutes=60)):
+                continue
+            lg.settings_json = {**sj, "prelaunch_synced_for": raw}  # once per bell
+            due = True
+        if due:
+            n = sync_service.sync_players(session, SleeperProvider())
+            session.commit()
+            log.info("pre-launch player sync: %d", n)
 
 
 def _current_playing_week(session, season_year: int) -> int:
@@ -234,6 +262,7 @@ def job_live_accrual():
 def start_scheduler() -> BackgroundScheduler:
     sched = BackgroundScheduler(timezone="UTC")
     sched.add_job(job_sync_players, "cron", hour=9, minute=0)
+    sched.add_job(job_prelaunch_sync, "interval", minutes=10)  # fresh rosters at the bell
     sched.add_job(job_backup_db, "cron", hour=8, minute=30)  # nightly DB backup
     sched.add_job(job_price_snapshot, "cron", hour=6, minute=0)
     sched.add_job(job_game_locks, "interval", minutes=15)

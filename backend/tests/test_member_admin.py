@@ -85,3 +85,29 @@ def test_cannot_remove_self_or_unknown(client):
     ryan = register(client, "ryan")
     assert client.post("/api/admin/remove-member", json={"user_id": ryan["user_id"]}).status_code == 400
     assert client.post("/api/admin/remove-member", json={"user_id": 999999}).status_code == 404
+
+
+def test_close_registration_blocks_new_members(client):
+    register(client, "ryan")  # first member (commissioner) always allowed
+    assert client.post("/api/admin/registration", json={"open": False}).json() == {
+        "registration_open": False
+    }
+    r = client.post(
+        "/api/auth/register",
+        json={"invite_code": "test", "username": "carol", "password": "hunter22"},
+    )
+    assert r.status_code == 403
+    # reopen and carol can join
+    client.post("/api/admin/registration", json={"open": True})
+    assert register(client, "carol")["username"] == "carol"
+
+
+def test_reset_password_lets_a_member_back_in(client):
+    register(client, "ryan")
+    bob = register(client, "bob")
+    login(client, "ryan")
+    temp = client.post("/api/admin/reset-password", json={"user_id": bob["user_id"]}).json()["temp_password"]
+    assert temp and len(temp) == 8
+    # the temp password works; the old one no longer does
+    assert client.post("/api/auth/login", json={"username": "bob", "password": temp}).status_code == 200
+    assert client.post("/api/auth/login", json={"username": "bob", "password": "hunter22"}).status_code == 401

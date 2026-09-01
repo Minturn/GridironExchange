@@ -46,6 +46,13 @@ def register(body: RegisterIn, response: Response, session: Session = Depends(ge
     if league is None:
         raise HTTPException(status_code=400, detail="invalid invite code")
     username = body.username.strip()
+    # commissioner can close the league to new members. The first member (who becomes
+    # commissioner) is always allowed through, so a closed flag can't lock out an empty league.
+    member_count = session.execute(
+        select(func.count()).select_from(User).where(User.league_id == league.id)
+    ).scalar()
+    if member_count > 0 and (league.settings_json or {}).get("registration_closed"):
+        raise HTTPException(status_code=403, detail="this league is closed to new members")
     # names are matched case-insensitively (a phone auto-capitalizes) — so "Ryan"
     # and "ryan" are the same account and can't both be registered.
     taken = session.execute(
@@ -55,9 +62,6 @@ def register(body: RegisterIn, response: Response, session: Session = Depends(ge
     ).scalar_one_or_none()
     if taken:
         raise HTTPException(status_code=400, detail="that name is taken in this league")
-    member_count = session.execute(
-        select(func.count()).select_from(User).where(User.league_id == league.id)
-    ).scalar()
     user = User(
         league_id=league.id,
         username=username,

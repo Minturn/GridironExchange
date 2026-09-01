@@ -168,6 +168,7 @@ export interface LeagueState {
   dividend_multiplier: number
   in_game_trading: 'locked' | 'live'
   lineup_slots: Record<string, number>
+  registration_open: boolean
   version: string
 }
 

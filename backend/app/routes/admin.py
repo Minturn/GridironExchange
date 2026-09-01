@@ -1,4 +1,5 @@
 """Commissioner tools — everything here requires is_commissioner."""
+import secrets
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from app.auth import current_commissioner, get_session
+from app.auth import current_commissioner, get_session, hash_password
 from app.db import utcnow
 from app.engine import fantasy_scoring, ledger
 from app.engine.dividends import post_week_dividends
@@ -392,3 +393,42 @@ def remove_member(body: RemoveMemberIn, user: User = Depends(current_commissione
     session.delete(target)
     session.commit()
     return {"removed": username, "liquidated": shares_out > 0, "shares_returned": shares_out}
+
+
+class RegistrationIn(BaseModel):
+    open: bool
+
+
+@router.post("/registration")
+def set_registration(body: RegistrationIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Open or close the league to new members. Closed = the invite code stops working for
+    new sign-ups (existing members are unaffected). Close it once everyone's in so a leaked
+    code can't add strangers."""
+    league = session.get(League, user.league_id)
+    settings = dict(league.settings_json or {})
+    settings["registration_closed"] = not body.open
+    league.settings_json = settings
+    session.commit()
+    return {"registration_open": body.open}
+
+
+# unambiguous alphabet — no 0/O/1/l/I, so a texted temp password is easy to read and type
+_TEMP_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+
+
+class ResetPasswordIn(BaseModel):
+    user_id: int
+
+
+@router.post("/reset-password")
+def reset_password(body: ResetPasswordIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Set a member's password to a fresh temporary one and return it, so a locked-out
+    manager can get back in. The commissioner reads the temp password to them (this league
+    has no email on file by design); they log in with it. Works on any member in the league."""
+    target = session.get(User, body.user_id)
+    if target is None or target.league_id != user.league_id:
+        raise HTTPException(status_code=404, detail="no such member in your league")
+    temp = "".join(secrets.choice(_TEMP_ALPHABET) for _ in range(8))
+    target.pw_hash = hash_password(temp)
+    session.commit()
+    return {"username": target.username, "temp_password": temp}

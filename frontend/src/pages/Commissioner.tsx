@@ -36,6 +36,7 @@ export function Commissioner() {
   const [audit, setAudit] = useState<AuditReport | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [pick, setPick] = useState<number | ''>('')
+  const [resetInfo, setResetInfo] = useState<{ username: string; temp: string } | null>(null)
 
   function loadMembers() {
     return get<{ members: Member[] }>('/api/admin/members')
@@ -72,6 +73,26 @@ export function Commissioner() {
     await loadMembers()
   }
 
+  async function resetPassword() {
+    const m = members.find((x) => x.user_id === pick)
+    if (!m) return
+    if (
+      !window.confirm(
+        `Reset ${m.username}'s password? Their current one stops working and you'll get a temporary password to give them.`,
+      )
+    )
+      return
+    setResetInfo(null)
+    await run(`reset ${m.username}`, async () => {
+      const r = await post<{ username: string; temp_password: string }>(
+        '/api/admin/reset-password',
+        { user_id: m.user_id },
+      )
+      setResetInfo({ username: r.username, temp: r.temp_password })
+      return { reset: r.username } // keep the temp password out of the generic status line
+    })
+  }
+
   async function run(label: string, fn: () => Promise<unknown>) {
     setOut(`${label}…`)
     try {
@@ -81,6 +102,8 @@ export function Commissioner() {
       setOut(`${label} FAILED: ${e instanceof ApiError ? e.message : String(e)}`)
     }
   }
+
+  const picked = members.find((m) => m.user_id === pick) ?? null
 
   return (
     <div className="page">
@@ -390,8 +413,46 @@ export function Commissioner() {
         </Card>
 
         <Card
+          title="Registration"
+          blurb="Open: anyone with the invite code can join. Closed: the code stops working for new members — everyone already in is unaffected. Close it once your league is set so a leaked code can't add strangers."
+        >
+          <div className="row">
+            <span className="dim" style={{ fontSize: 12 }}>
+              Current:{' '}
+              <b style={{ color: cur?.registration_open === false ? 'var(--scarlet-hi)' : 'var(--gold-hi)' }}>
+                {cur ? (cur.registration_open ? 'open' : 'closed') : '…'}
+              </b>
+            </span>
+          </div>
+          <div className="row">
+            <button
+              className="btn"
+              disabled={cur?.registration_open === true}
+              onClick={() =>
+                run('registration', () => post('/api/admin/registration', { open: true })).then(() =>
+                  setCur((c) => (c ? { ...c, registration_open: true } : c)),
+                )
+              }
+            >
+              Open
+            </button>
+            <button
+              className="btn danger"
+              disabled={cur?.registration_open === false}
+              onClick={() =>
+                run('registration', () => post('/api/admin/registration', { open: false })).then(() =>
+                  setCur((c) => (c ? { ...c, registration_open: false } : c)),
+                )
+              }
+            >
+              Close
+            </button>
+          </div>
+        </Card>
+
+        <Card
           title="Members"
-          blurb="Everyone who's joined with the invite code. Remove a manager to take them out of the league — you and other commissioners can't be removed. If they hold shares, their book is sold back to the market (prices adjust) before the account is deleted. Permanent."
+          blurb="Everyone who's joined with the invite code. Reset password gives a locked-out manager a fresh temporary one to sign in with. Remove takes someone out of the league (you and other commissioners can't be removed) — if they hold shares their book is sold back to the market first. Removal is permanent."
         >
           <div className="row">
             <span className="dim" style={{ fontSize: 12 }}>
@@ -401,26 +462,44 @@ export function Commissioner() {
           <div className="row">
             <select
               value={pick}
-              style={{ minWidth: 240 }}
-              aria-label="Member to remove"
-              onChange={(e) => setPick(e.target.value ? Number(e.target.value) : '')}
+              style={{ minWidth: 260 }}
+              aria-label="Member"
+              onChange={(e) => {
+                setPick(e.target.value ? Number(e.target.value) : '')
+                setResetInfo(null)
+              }}
             >
-              <option value="">choose member to remove…</option>
-              {members
-                .filter((m) => !m.is_you && !m.is_commissioner)
-                .map((m) => (
-                  <option key={m.user_id} value={m.user_id}>
-                    {m.username} — {m.shares} shares · {m.trades} trades
-                  </option>
-                ))}
+              <option value="">choose a member…</option>
+              {members.map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  {m.username}
+                  {m.is_you ? ' (you)' : m.is_commissioner ? ' (commish)' : ''} — {m.shares} shares · {m.trades} trades
+                </option>
+              ))}
             </select>
-            <button className="btn danger" disabled={!pick} onClick={removeMember}>
+          </div>
+          <div className="row">
+            <button className="btn" disabled={!picked} onClick={resetPassword}>
+              Reset password
+            </button>
+            <button
+              className="btn danger"
+              disabled={!picked || picked.is_you || picked.is_commissioner}
+              onClick={removeMember}
+            >
               Remove
             </button>
           </div>
-          {members.filter((m) => !m.is_you && !m.is_commissioner).length === 0 && (
+          {resetInfo && (
+            <p style={{ fontSize: 12.5, marginTop: 8 }}>
+              Temp password for <b>{resetInfo.username}</b>:{' '}
+              <b style={{ color: 'var(--gold-hi)', fontFamily: 'monospace', fontSize: 14 }}>{resetInfo.temp}</b>{' '}
+              — text it to them; they sign in with it.
+            </p>
+          )}
+          {picked && (picked.is_you || picked.is_commissioner) && (
             <p className="dim" style={{ fontSize: 11.5 }}>
-              No removable members yet — you and other commissioners aren’t listed here.
+              You and other commissioners can’t be removed — reset is fine.
             </p>
           )}
         </Card>
