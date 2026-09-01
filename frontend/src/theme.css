@@ -107,7 +107,7 @@ button { font-family: var(--body); }
 .tape-track { display: inline-block; animation: tape 42s linear infinite; }
 @keyframes tape { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .tape span { margin: 0 20px; color: var(--ink-dim); font-size: 12px; }
-.tape .tkr { color: var(--ink); }
+.tape .tkr { color: var(--ink); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .tape-track { animation: none; } }
 
 /* ---------- layout + panels ---------- */

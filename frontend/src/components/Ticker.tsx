@@ -8,8 +8,8 @@ export function Ticker({ rows }: { rows: MarketRow[] }) {
   const half = (suffix: string) =>
     movers.map((r) => (
       <span key={r.player_id + suffix}>
-        <span className="tkr">${(r.name.split(' ').pop() ?? r.name).toUpperCase()}</span>{' '}
-        <span className="num">{money(r.price)}</span>{' '}
+        <span className="tkr">{(r.name.split(' ').pop() ?? r.name).toUpperCase()}</span>{' '}
+        <span className="num">${money(r.price)}</span>{' '}
         <span className={`num ${r.delta_pct >= 0 ? 'up' : 'dn'}`}>
           {r.delta_pct >= 0 ? '▲' : '▼'}
           {Math.abs(r.delta_pct * 100).toFixed(1)}%
