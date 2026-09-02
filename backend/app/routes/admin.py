@@ -324,6 +324,8 @@ def list_members(user: User = Depends(current_commissioner), session: Session = 
     """Every manager in the league, with the context the Remove-member card needs: who
     they are, whether they're you or a commissioner (both un-removable), and their live
     market footprint (shares held, trades made) so removal warns before it moves prices."""
+    league = session.get(League, user.league_id)
+    paid = set((league.settings_json or {}).get("paid_user_ids") or [])
     members = session.scalars(
         select(User).where(User.league_id == user.league_id).order_by(User.username)
     ).all()
@@ -341,8 +343,34 @@ def list_members(user: User = Depends(current_commissioner), session: Session = 
             "cash": float(m.cash),
             "shares": int(shares or 0),
             "trades": int(trades or 0),
+            "paid": m.id in paid,
         })
     return {"members": rows}
+
+
+class SetPaidIn(BaseModel):
+    user_id: int
+    paid: bool
+
+
+@router.post("/set-paid")
+def set_paid(body: SetPaidIn, user: User = Depends(current_commissioner), session: Session = Depends(get_session)):
+    """Mark a member paid/unpaid for the buy-in. Stored as a list of user ids in league
+    settings — the commissioner's ledger of who's in the pot."""
+    target = session.get(User, body.user_id)
+    if target is None or target.league_id != user.league_id:
+        raise HTTPException(status_code=404, detail="no such member in your league")
+    league = session.get(League, user.league_id)
+    settings = dict(league.settings_json or {})
+    paid = set(settings.get("paid_user_ids") or [])
+    if body.paid:
+        paid.add(target.id)
+    else:
+        paid.discard(target.id)
+    settings["paid_user_ids"] = sorted(paid)
+    league.settings_json = settings
+    session.commit()
+    return {"user_id": target.id, "paid": body.paid, "paid_count": len(paid)}
 
 
 class RemoveMemberIn(BaseModel):
@@ -389,6 +417,12 @@ def remove_member(body: RemoveMemberIn, user: User = Depends(current_commissione
 
     for model in (Holding, Trade, Dividend, DividendAccrual, HoldingSnapshot):
         session.execute(delete(model).where(model.user_id == target.id))
+    league = session.get(League, target.league_id)   # drop them from the buy-in ledger too
+    paid = (league.settings_json or {}).get("paid_user_ids") or []
+    if target.id in paid:
+        settings = dict(league.settings_json or {})
+        settings["paid_user_ids"] = [i for i in paid if i != target.id]
+        league.settings_json = settings
     username = target.username
     session.delete(target)
     session.commit()

@@ -153,6 +153,7 @@ export interface Member {
   cash: number
   shares: number
   trades: number
+  paid: boolean
 }
 
 export interface LeagueState {

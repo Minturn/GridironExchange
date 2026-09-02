@@ -73,6 +73,13 @@ export function Commissioner() {
     await loadMembers()
   }
 
+  async function togglePaid(m: Member) {
+    await run(`${m.paid ? 'unpaid' : 'paid'} ${m.username}`, () =>
+      post('/api/admin/set-paid', { user_id: m.user_id, paid: !m.paid }),
+    )
+    await loadMembers()
+  }
+
   async function resetPassword() {
     const m = members.find((x) => x.user_id === pick)
     if (!m) return
@@ -502,6 +509,42 @@ export function Commissioner() {
               You and other commissioners can’t be removed — reset is fine.
             </p>
           )}
+        </Card>
+
+        <Card
+          title="Buy-in tracker"
+          blurb="Mark who's paid the $20 buy-in — your ledger of who's in the pot. Winner takes it all. This is just a checklist; it doesn't move any money."
+        >
+          <div className="row">
+            <span className="dim" style={{ fontSize: 12 }}>
+              <b style={{ color: 'var(--gold-hi)' }}>{members.filter((m) => m.paid).length}</b> / {members.length} paid
+              {'  ·  pot '}
+              <b style={{ color: 'var(--gold-hi)' }}>${members.filter((m) => m.paid).length * 20}</b>
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+            {members.length === 0 && (
+              <span className="dim" style={{ fontSize: 11.5 }}>No members yet — they’ll appear here as they join.</span>
+            )}
+            {members.map((m) => (
+              <div
+                key={m.user_id}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}
+              >
+                <span style={{ fontSize: 13 }}>
+                  {m.username}
+                  {m.is_you ? ' (you)' : m.is_commissioner ? ' (commish)' : ''}
+                </span>
+                <button
+                  className={`btn ${m.paid ? 'solid' : ''}`}
+                  style={{ minWidth: 92 }}
+                  onClick={() => togglePaid(m)}
+                >
+                  {m.paid ? '✓ Paid' : 'Mark paid'}
+                </button>
+              </div>
+            ))}
+          </div>
         </Card>
 
         <Card title="Money audit" blurb="Replay every member's trade + dividend ledger and compare to their cash balance. All green means the books are exact; any drift points to a bug or hand-edit, with the amount.">

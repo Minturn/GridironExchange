@@ -102,6 +102,34 @@ def test_close_registration_blocks_new_members(client):
     assert register(client, "carol")["username"] == "carol"
 
 
+def test_set_paid_tracks_the_buyin(client):
+    register(client, "ryan")
+    bob = register(client, "bob")
+    login(client, "ryan")
+    rows = {m["username"]: m for m in client.get("/api/admin/members").json()["members"]}
+    assert rows["bob"]["paid"] is False  # default unpaid
+
+    r = client.post("/api/admin/set-paid", json={"user_id": bob["user_id"], "paid": True}).json()
+    assert r["paid"] is True and r["paid_count"] == 1
+    rows = {m["username"]: m for m in client.get("/api/admin/members").json()["members"]}
+    assert rows["bob"]["paid"] is True
+
+    client.post("/api/admin/set-paid", json={"user_id": bob["user_id"], "paid": False})
+    rows = {m["username"]: m for m in client.get("/api/admin/members").json()["members"]}
+    assert rows["bob"]["paid"] is False
+
+
+def test_removing_a_paid_member_clears_the_pot_count(client):
+    ryan = register(client, "ryan")
+    bob = register(client, "bob")
+    login(client, "ryan")
+    client.post("/api/admin/set-paid", json={"user_id": bob["user_id"], "paid": True})
+    client.post("/api/admin/remove-member", json={"user_id": bob["user_id"]})
+    # bob's stale id must be gone: marking ryan gives a count of 1, not 2
+    r = client.post("/api/admin/set-paid", json={"user_id": ryan["user_id"], "paid": True}).json()
+    assert r["paid_count"] == 1
+
+
 def test_reset_password_lets_a_member_back_in(client):
     register(client, "ryan")
     bob = register(client, "bob")
