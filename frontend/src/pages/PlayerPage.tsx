@@ -13,6 +13,7 @@ export function PlayerPage({ onCashChange }: { onCashChange: () => void }) {
   const [quote, setQuote] = useState<Quote | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
   const load = useCallback(() => {
     if (playerId) get<PlayerDetail>(`/api/players/${playerId}`).then(setDetail).catch(() => setDetail(null))
@@ -21,6 +22,7 @@ export function PlayerPage({ onCashChange }: { onCashChange: () => void }) {
 
   useEffect(() => {
     setQuote(null)
+    setConfirming(false) // changing the order (or a reload after a trade) cancels a pending confirm
     if (!playerId || !shares || shares < 1) return
     const t = setTimeout(() => {
       get<Quote>(`/api/quote?player_id=${playerId}&side=${side}&shares=${shares}`)
@@ -50,6 +52,7 @@ export function PlayerPage({ onCashChange }: { onCashChange: () => void }) {
       setMsg({ ok: false, text: e instanceof ApiError ? e.message : 'order failed' })
     } finally {
       setBusy(false)
+      setConfirming(false) // require a fresh confirm for any next order — no accidental repeat
     }
   }
 
@@ -152,14 +155,43 @@ export function PlayerPage({ onCashChange }: { onCashChange: () => void }) {
               </p>
             )}
             {msg && <p className={msg.ok ? 'ok-msg' : 'err'}>{msg.text}</p>}
-            <button
-              className={`btn ${side === 'buy' ? 'solid' : 'danger'}`}
-              disabled={busy || !quote?.ok || !!detail.locked_until}
-              onClick={place}
-              type="button"
-            >
-              {side === 'buy' ? 'Place buy' : 'Place sell'}
-            </button>
+            {!confirming ? (
+              <button
+                className={`btn ${side === 'buy' ? 'solid' : 'danger'}`}
+                disabled={busy || !quote?.ok || !!detail.locked_until}
+                onClick={() => setConfirming(true)}
+                type="button"
+              >
+                {side === 'buy' ? 'Place buy' : 'Place sell'}
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <p className="quote num" style={{ margin: 0 }}>
+                  Confirm <b>{side === 'buy' ? 'BUY' : 'SELL'} {quote?.shares} sh</b> ·{' '}
+                  {side === 'buy' ? 'cost' : 'you receive'} <b>${money(quote?.total ?? 0)}</b>?
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className={`btn ${side === 'buy' ? 'solid' : 'danger'}`}
+                    style={{ flex: 1 }}
+                    disabled={busy || !quote?.ok || !!detail.locked_until}
+                    onClick={place}
+                    type="button"
+                  >
+                    {busy ? 'Placing…' : `Yes, ${side}`}
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ flex: 1 }}
+                    disabled={busy}
+                    onClick={() => setConfirming(false)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
