@@ -4,7 +4,8 @@ import type { CashEvent, CashHistory as CashHistoryT } from '../types'
 
 const when = (ts: string | null) =>
   ts
-    ? new Date(ts).toLocaleString(undefined, {
+    ? // backend sends naive UTC (no offset); mark it UTC so it renders in local time
+      new Date(ts + 'Z').toLocaleString(undefined, {
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
