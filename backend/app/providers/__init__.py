@@ -10,6 +10,7 @@ class PlayerRecord(TypedDict):
     team: str | None
     pos: str
     status: str | None
+    injury_status: str | None
 
 
 class StatsProvider(Protocol):
@@ -17,6 +18,10 @@ class StatsProvider(Protocol):
 
     def fetch_week_stats(self, season: int, week: int) -> dict[str, Decimal]:
         """player_id -> PPR fantasy points for the week."""
+        ...
+
+    def fetch_week_projections(self, season: int, week: int) -> dict[str, Decimal]:
+        """player_id -> projected PPR points for the week (drives rest-of-season repricing)."""
         ...
 
     def fetch_week_raw(self, season: int, week: int) -> dict[str, dict]:

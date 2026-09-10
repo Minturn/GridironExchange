@@ -75,6 +75,11 @@ export function Floor({ rows }: { rows: MarketRow[] }) {
                 <tr key={r.player_id} className="rowlink" onClick={() => nav(`/player/${r.player_id}`)}>
                   <td className="l">
                     <span className="pname">{r.name}</span>{' '}
+                    {r.injury && (
+                      <span className={`inj ${r.injury === 'Q' ? 'q' : ''}`} title="injury status">
+                        {r.injury}
+                      </span>
+                    )}{' '}
                     {r.locked && <span className="lock">LOCKED</span>}
                   </td>
                   <td className="l pmeta">

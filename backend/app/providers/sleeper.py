@@ -41,6 +41,7 @@ class SleeperProvider:
                     team=p.get("team"),
                     pos=p["position"],
                     status=p.get("status"),
+                    injury_status=p.get("injury_status"),  # Out/Doubtful/Questionable/IR/Sus or None
                 )
             )
         return out
@@ -51,6 +52,17 @@ class SleeperProvider:
             str(pid): Decimal(str(stats["pts_ppr"]))
             for pid, stats in raw.items()
             if isinstance(stats, dict) and stats.get("pts_ppr") is not None
+        }
+
+    def fetch_week_projections(self, season: int, week: int) -> dict[str, Decimal]:
+        """player_id -> projected pts_ppr for a week. Sleeper zeroes (or omits) an
+        injured/out player's projection, so summing remaining weeks yields a
+        rest-of-season number that already reflects injuries."""
+        raw = self._get(f"{BASE}/projections/nfl/regular/{season}/{week}")
+        return {
+            str(pid): Decimal(str(proj["pts_ppr"]))
+            for pid, proj in raw.items()
+            if isinstance(proj, dict) and proj.get("pts_ppr") is not None
         }
 
     def fetch_week_raw(self, season: int, week: int) -> dict[str, dict]:

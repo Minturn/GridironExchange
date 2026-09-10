@@ -33,6 +33,25 @@ def _spot(listing: Listing) -> Decimal:
     return amm.spot_price(listing.p0, listing.slope, listing.shares_outstanding)
 
 
+_INJURY_LABELS = {
+    "Questionable": "Q", "Doubtful": "DBT", "Out": "OUT", "IR": "IR",
+    "Sus": "SUS", "PUP": "PUP", "COV": "COV", "DNR": "DNR", "NA": "NA",
+}
+
+
+def _injury_badge(p: Player) -> str | None:
+    """Short injury tag for the board: weekly designation first, then roster IR/PUP."""
+    inj = (p.injury_status or "").strip()
+    if inj:
+        return _INJURY_LABELS.get(inj, inj.upper()[:4])
+    st = (p.status or "").strip()
+    if st == "Injured Reserve":
+        return "IR"
+    if st == "Physically Unable to Perform":
+        return "PUP"
+    return None
+
+
 def _mark(listing: Listing, shares: int) -> Decimal:
     # Mark a holding at the current price (shares × spot), the brokerage convention —
     # matches the price shown on the board. (The actual sell walks the curve down and
@@ -97,6 +116,7 @@ def market(user: User = Depends(current_user), session: Session = Depends(get_se
                 "delta_pct": (price - base) / base if base else 0.0,
                 "spark": series or [float(l.p0), price],
                 "last_wk_pts": last_pts.get(p.id, 0.0),
+                "injury": _injury_badge(p),
                 "shares_outstanding": l.shares_outstanding,
                 "your_shares": mine.get(p.id, 0),
                 "locked": l.locked_until is not None and l.locked_until > now,

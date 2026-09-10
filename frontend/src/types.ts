@@ -16,6 +16,7 @@ export interface MarketRow {
   delta_pct: number
   spark: number[]
   last_wk_pts: number
+  injury: string | null
   shares_outstanding: number
   your_shares: number
   locked: boolean

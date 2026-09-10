@@ -23,7 +23,7 @@ export function AreaChart({
       <polygon points={`4,${height - 8} ${pts} ${width - 4},${height - 8}`} fill="rgba(179,153,93,.14)" />
       <line x1="4" y1={Y(p0).toFixed(1)} x2={width - 4} y2={Y(p0).toFixed(1)} stroke="var(--ink-faint)" strokeDasharray="3 4" strokeWidth="1" />
       <text x={width - 6} y={(Y(p0) - 4).toFixed(1)} fill="var(--ink-faint)" fontSize="9" textAnchor="end">
-        IPO {p0.toFixed(2)}
+        Base {p0.toFixed(2)}
       </text>
       <polyline points={pts} fill="none" stroke="var(--gold)" strokeWidth="1.6" />
       <circle cx={X(data.length - 1).toFixed(1)} cy={Y(data[data.length - 1]).toFixed(1)} r="2.6" fill="var(--gold-hi)" />

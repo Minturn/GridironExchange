@@ -77,7 +77,7 @@ export function PlayerPage({ onCashChange }: { onCashChange: () => void }) {
         </div>
         <div className="pc-stats">
           <div>
-            <span className="lbl">IPO (P0)</span>
+            <span className="lbl">Base price</span>
             <span className="val num">${money(detail.p0)}</span>
           </div>
           <div>

@@ -133,6 +133,7 @@ class Player(Base):
     team: Mapped[str | None] = mapped_column(String(4), nullable=True)
     pos: Mapped[str] = mapped_column(String(4))
     status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    injury_status: Mapped[str | None] = mapped_column(String(20), nullable=True)  # Sleeper: Out/Doubtful/Questionable/IR
     bye_week: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 

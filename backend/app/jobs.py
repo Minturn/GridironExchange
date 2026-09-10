@@ -42,6 +42,24 @@ def job_sync_players():
         log.info("player sync: %d", n)
 
 
+def job_weekly_reprice():
+    """Re-anchor every league's prices to rest-of-season projections (normalized), so
+    injuries/slumps/breakouts move prices. Runs weekly after Tuesday settlement."""
+    from app.engine import reprice
+    with SessionLocal() as session:
+        provider = SleeperProvider()
+        for lg in session.scalars(select(League)).all():
+            from_week = _current_playing_week(session, lg.season_year)
+            if from_week > 18:
+                continue
+            ros = reprice.rest_of_season(provider, lg.season_year, from_week)
+            if not ros:
+                log.warning("reprice league=%s: no projections wk%d+", lg.id, from_week)
+                continue
+            result = reprice.reproject(session, lg, ros)
+            log.info("weekly reprice league=%s from_week=%d %s", lg.id, from_week, result)
+
+
 def job_prelaunch_sync():
     """Refresh the player universe in the hour before a league's market opens, so rosters,
     teams, byes and injury status are current at the opening bell — not up to a day stale
@@ -268,6 +286,7 @@ def start_scheduler() -> BackgroundScheduler:
     sched.add_job(job_game_locks, "interval", minutes=15)
     sched.add_job(job_live_accrual, "interval", minutes=1)  # live in-game dividend accrual
     sched.add_job(job_tuesday_settlement, "cron", day_of_week="tue", hour=13, minute=10)
+    sched.add_job(job_weekly_reprice, "cron", day_of_week="tue", hour=14, minute=0)  # after settlement
     sched.start()
     log.info("scheduler started")
     return sched

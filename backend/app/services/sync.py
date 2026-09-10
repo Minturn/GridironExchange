@@ -20,6 +20,7 @@ def sync_players(session: Session, provider: StatsProvider) -> int:
         player.team = rec["team"]
         player.pos = rec["pos"]
         player.status = rec["status"]
+        player.injury_status = rec.get("injury_status")
         count += 1
     session.commit()
     return count
