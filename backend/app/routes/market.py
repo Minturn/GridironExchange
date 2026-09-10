@@ -33,6 +33,13 @@ def _spot(listing: Listing) -> Decimal:
     return amm.spot_price(listing.p0, listing.slope, listing.shares_outstanding)
 
 
+def _mark(listing: Listing, shares: int) -> Decimal:
+    # Mark a holding at the current price (shares × spot), the brokerage convention —
+    # matches the price shown on the board. (The actual sell walks the curve down and
+    # is quoted separately at sell time, so proceeds still reflect real slippage.)
+    return amm.money(shares * _spot(listing))
+
+
 @router.get("/market")
 def market(user: User = Depends(current_user), session: Session = Depends(get_session)):
     rows = session.execute(
@@ -294,7 +301,7 @@ def portfolio(user: User = Depends(current_user), session: Session = Depends(get
     holdings = []
     mark_total = Decimal("0.00")
     for h, l, p in rows:
-        mark = amm.sell_gross(l.p0, l.slope, l.shares_outstanding, h.shares)
+        mark = _mark(l, h.shares)
         mark_total += mark
         avg = basis.get(p.id)
         holdings.append(
@@ -376,7 +383,7 @@ def manager(username: str, user: User = Depends(current_user), session: Session 
     holdings = []
     mark_total = Decimal("0.00")
     for h, l, p in rows:
-        mark = amm.sell_gross(l.p0, l.slope, l.shares_outstanding, h.shares)
+        mark = _mark(l, h.shares)
         mark_total += mark
         holdings.append(
             {
@@ -423,7 +430,7 @@ def leaderboard(user: User = Depends(current_user), session: Session = Depends(g
     for h in holdings:
         l = listings.get(h.player_id)
         if l:
-            by_user[h.user_id] += amm.sell_gross(l.p0, l.slope, l.shares_outstanding, h.shares)
+            by_user[h.user_id] += _mark(l, h.shares)
     board = [
         {
             "username": u.username,

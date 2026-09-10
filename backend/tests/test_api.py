@@ -99,6 +99,11 @@ def test_portfolio_pnl_and_leaderboard(client, session):
     assert h["shares"] == 10
     assert h["avg_cost"] == pytest.approx(102.62)  # (1016 + 10.16) / 10
     assert p["net_worth"] == pytest.approx(p["cash"] + h["mark_value"])
+    # holdings are marked at SPOT (shares × the price shown on the board), not liquidation
+    market = client.get("/api/market").json()
+    spot = next(r["price"] for r in market if r["player_id"] == "cmc")
+    assert spot == pytest.approx(103.20)  # p0 100 + slope 0.32 × 10 shares
+    assert h["mark_value"] == pytest.approx(10 * spot)  # 1032.00, not the 1016 sell-gross would give
     board = client.get("/api/leaderboard").json()
     assert board[0]["is_you"] is True and board[0]["rank"] == 1
 
