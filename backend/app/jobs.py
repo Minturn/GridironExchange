@@ -60,6 +60,25 @@ def job_weekly_reprice():
             log.info("weekly reprice league=%s from_week=%d %s", lg.id, from_week, result)
 
 
+def job_daily_autolist():
+    """Add listings for any newly-projected player (handcuff who earned a role, call-up)
+    without re-pricing existing listings — so emerging players are tradeable within a day,
+    not only at the weekly reprice. Runs after the nightly player sync."""
+    from app.engine import reprice
+    with SessionLocal() as session:
+        provider = SleeperProvider()
+        for lg in session.scalars(select(League)).all():
+            from_week = _current_playing_week(session, lg.season_year)
+            if from_week > 18:
+                continue
+            ros = reprice.rest_of_season(provider, lg.season_year, from_week)
+            if not ros:
+                continue
+            result = reprice.reproject(session, lg, ros, reanchor=False)
+            if result.get("listed"):
+                log.info("daily auto-list league=%s %s", lg.id, result)
+
+
 def job_prelaunch_sync():
     """Refresh the player universe in the hour before a league's market opens, so rosters,
     teams, byes and injury status are current at the opening bell — not up to a day stale
@@ -280,6 +299,7 @@ def job_live_accrual():
 def start_scheduler() -> BackgroundScheduler:
     sched = BackgroundScheduler(timezone="UTC")
     sched.add_job(job_sync_players, "cron", hour=9, minute=0)
+    sched.add_job(job_daily_autolist, "cron", hour=9, minute=30)  # list newly-projected players (after sync)
     sched.add_job(job_prelaunch_sync, "interval", minutes=10)  # fresh rosters at the bell
     sched.add_job(job_backup_db, "cron", hour=8, minute=30)  # nightly DB backup
     sched.add_job(job_price_snapshot, "cron", hour=6, minute=0)
