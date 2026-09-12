@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from app.config import settings
 from app.db import SessionLocal, utcnow
 from app.engine.dividends import post_week_dividends, snapshot_holdings
-from app.models import League, Listing, Player, StatWeek
+from app.models import DividendAccrual, League, Listing, Player, StatWeek
 from app.providers.espn import EspnSchedule
 from app.providers.sleeper import SleeperProvider
 from app.services import sync as sync_service
@@ -255,13 +255,10 @@ def job_live_accrual():
     from app.engine import accrual
 
     now = utcnow()
-    live_teams = {
-        t
-        for g in EspnSchedule().current_week_games()
-        if g["state"] == "in"
-        for t in g["teams"]
-    }
-    if not live_teams:
+    games = EspnSchedule().current_week_games()
+    live_teams = {t for g in games if g["state"] == "in" for t in g["teams"]}
+    final_teams = {t for g in games if g["state"] == "post" for t in g["teams"]}
+    if not live_teams and not final_teams:
         return
     provider = SleeperProvider()
     state = provider.fetch_state()
@@ -278,22 +275,57 @@ def job_live_accrual():
         ]
         if not leagues:
             return
-        live_players = {
-            p.id
-            for p in session.execute(select(Player).where(Player.team.in_(live_teams))).scalars()
-        }
+
+        def players_on(teams: set[str]) -> set[str]:
+            if not teams:
+                return set()
+            return {
+                p.id
+                for p in session.execute(select(Player).where(Player.team.in_(teams))).scalars()
+            }
+
+        live_players = players_on(live_teams)
+        final_players = players_on(final_teams)
         raw_by_season: dict[int, dict] = {}
+
+        def raw_for(season: int) -> dict:
+            return raw_by_season.setdefault(season, provider.fetch_week_raw(season, week))
+
+        # 1) accrue in-progress games to holders (live)
         total = 0
-        for lg in leagues:
-            raw_by_season.setdefault(
-                lg.season_year, provider.fetch_week_raw(lg.season_year, week)
-            )
-            total += accrual.accrue_live(
-                session, lg.id, week, raw_by_season[lg.season_year],
-                only_players=live_players, now=now,
-            )
+        if live_players:
+            for lg in leagues:
+                total += accrual.accrue_live(
+                    session, lg.id, week, raw_for(lg.season_year),
+                    only_players=live_players, now=now,
+                )
         if total:
             log.info("live accrual wk%d: %d rows across %d league(s)", week, total, len(leagues))
+
+        # 2) per-game payout: settle each finished game's players to cash (once), after a
+        #    final true-up. Gated on unsettled accruals so it doesn't re-work settled games.
+        if final_players:
+            for lg in leagues:
+                pending = session.execute(
+                    select(DividendAccrual.id).where(
+                        DividendAccrual.league_id == lg.id,
+                        DividendAccrual.week == week,
+                        DividendAccrual.settled.is_(False),
+                        DividendAccrual.player_id.in_(final_players),
+                    ).limit(1)
+                ).first()
+                if not pending:
+                    continue  # already paid out, or nobody holds those players
+                accrual.accrue_live(  # final true-up: capture the last delta to final stats
+                    session, lg.id, week, raw_for(lg.season_year),
+                    only_players=final_players, now=now,
+                )
+                s = accrual.settle_week(session, lg.id, week, only_players=final_players)
+                if s.rows_posted:
+                    log.info(
+                        "per-game settle wk%d league=%s: %d rows $%s to %d mgr(s)",
+                        week, lg.id, s.rows_posted, s.total_paid, s.users_paid,
+                    )
 
 
 def start_scheduler() -> BackgroundScheduler:

@@ -170,3 +170,25 @@ def test_cume_points_uses_league_rubric():
     assert out["wr1"] == Decimal("20.00")
     half = cume_points({"wr1": {"rec": 6, "rec_yd": 80, "rec_td": 1}}, "half_ppr")
     assert half["wr1"] == Decimal("17.00")
+
+
+def test_settle_week_only_players_scopes_to_one_game(session, league, setup):
+    """Per-game payout: settle one finished game's players to cash, leave the rest live."""
+    alice, _bob, p = setup
+    hold(session, league, alice, p, 10)
+    q = make_player(session, pid="q", name="QB Guy")
+    make_listing(session, league, q)
+    hold(session, league, alice, q, 10)
+
+    accrue_tick(session, league.id, 1, {p.id: Decimal("10"), q.id: Decimal("20")}, {})
+
+    run = settle_week(session, league.id, 1, only_players={p.id})   # p's game went final
+    assert run.rows_posted == 1
+    assert run.total_paid == Decimal("75.00")                       # 10×10×.75
+
+    prov = provisional_by_user(session, league.id, 1)               # q still accruing, unsettled
+    assert prov.get(alice.id) == Decimal("150.00")                  # 10×20×.75
+
+    run2 = settle_week(session, league.id, 1, only_players={q.id})  # q's game finishes later
+    assert run2.total_paid == Decimal("150.00")
+    assert settle_week(session, league.id, 1).total_paid == Decimal("0.00")  # nothing left — idempotent

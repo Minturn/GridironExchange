@@ -162,18 +162,24 @@ class Settlement:
     total_paid: Decimal
 
 
-def settle_week(session: Session, league_id: int, week: int) -> Settlement:
-    """Tuesday reconciliation for an accrual-mode league. Sum un-settled accruals per
-    (player, user), floor each at $0, write a canonical Dividend row + pay cash, and
-    mark the accruals settled. Idempotent twice over: `settled` guards re-summing, and
-    the dividends unique key (league,week,player,user) guards re-posting."""
-    rows = session.execute(
-        select(DividendAccrual).where(
-            DividendAccrual.league_id == league_id,
-            DividendAccrual.week == week,
-            DividendAccrual.settled.is_(False),
-        )
-    ).scalars().all()
+def settle_week(
+    session: Session, league_id: int, week: int, only_players: set[str] | None = None
+) -> Settlement:
+    """Reconcile accruals to cash for an accrual-mode league. Sum un-settled accruals per
+    (player, user), floor each at $0, write a canonical Dividend row + pay cash, and mark
+    the accruals settled. Idempotent twice over: `settled` guards re-summing, and the
+    dividends unique key (league,week,player,user) guards re-posting.
+
+    `only_players` scopes it to one game's players — the per-game payout path settles each
+    game as it goes final; the Tuesday run (no filter) sweeps the whole week as a backstop."""
+    q = select(DividendAccrual).where(
+        DividendAccrual.league_id == league_id,
+        DividendAccrual.week == week,
+        DividendAccrual.settled.is_(False),
+    )
+    if only_players is not None:
+        q = q.where(DividendAccrual.player_id.in_(only_players))
+    rows = session.execute(q).scalars().all()
 
     amount: dict[tuple[str, int], Decimal] = defaultdict(lambda: Decimal("0"))
     points: dict[tuple[str, int], Decimal] = defaultdict(lambda: Decimal("0"))

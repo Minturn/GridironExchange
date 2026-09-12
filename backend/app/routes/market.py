@@ -601,12 +601,26 @@ def live(user: User = Depends(current_user), session: Session = Depends(get_sess
     ).scalars():
         your_accrued[a.player_id] += a.amount
 
+    # banked this week: games that already settled to cash (per-game payout). Fold into the
+    # paycheck so a finished game stays on the board instead of vanishing when it pays out.
+    settled_by_user: dict[int, Decimal] = defaultdict(lambda: Decimal("0.00"))
+    settled_by_player: dict[str, Decimal] = defaultdict(lambda: Decimal("0.00"))
+    for d in session.execute(
+        select(Dividend).where(Dividend.league_id == league.id, Dividend.week == week)
+    ).scalars():
+        settled_by_user[d.user_id] += d.amount
+        if d.user_id == user.id:
+            settled_by_player[d.player_id] += d.amount
+
     holdings = [
         {
             "player_id": pl.id, "name": pl.name, "pos": pl.pos, "team": pl.team,
             "shares": h.shares,
             "live_points": float(cume.get(pl.id, Decimal("0"))),
-            "accrued": float(max(amm.money(your_accrued.get(pl.id, Decimal("0"))), Decimal("0.00"))),
+            "accrued": float(
+                max(amm.money(your_accrued.get(pl.id, Decimal("0"))), Decimal("0.00"))
+                + settled_by_player.get(pl.id, Decimal("0.00"))
+            ),
         }
         for (h, _l, pl) in _held_with_pos(session, user)
     ]
@@ -616,9 +630,12 @@ def live(user: User = Depends(current_user), session: Session = Depends(get_sess
         u.id: u.username
         for u in session.execute(select(User).where(User.league_id == league.id)).scalars()
     }
+    def paycheck(uid: int) -> float:
+        return float(prov.get(uid, Decimal("0.00")) + settled_by_user.get(uid, Decimal("0.00")))
+
     board = sorted(
         (
-            {"username": names[uid], "paycheck": float(prov.get(uid, Decimal("0.00"))), "is_you": uid == user.id}
+            {"username": names[uid], "paycheck": paycheck(uid), "is_you": uid == user.id}
             for uid in names
         ),
         key=lambda r: -r["paycheck"],
@@ -628,8 +645,8 @@ def live(user: User = Depends(current_user), session: Session = Depends(get_sess
     return {
         "week": week,
         "dividend_mode": league.rules.dividend_mode,
-        "live": any(v > 0 for v in prov.values()),
-        "your_paycheck": float(prov.get(user.id, Decimal("0.00"))),
+        "live": any(v > 0 for v in prov.values()),  # a game is actively accruing right now
+        "your_paycheck": paycheck(user.id),
         "your_rank": next((r["rank"] for r in board if r["is_you"]), None),
         "holdings": holdings,
         "board": board,
